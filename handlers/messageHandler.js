@@ -1,0 +1,119 @@
+// handlers/messageHandler.js
+// Orchestrates the full flow:
+// Respond.io webhook → check session → [parallel: KINO reply + semantic extraction]
+//                   → merge form → send reply → handle handoff
+
+const { askKino }    = require('./claudeHandler');
+const {
+  sendMessage,
+  assignToTeam,
+  addNote,
+  upsertContact,
+}                    = require('./respondHandler');
+const { notifyHandoff }              = require('./notificationHandler');
+const { extractAndUpdateForm }       = require('../utils/formExtractor');
+const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
+const {
+  getSession,
+  addMessage,
+  markHandedOff,
+  isHandedOff,
+  updateForm,
+  getMissingFields,
+  formatFormSummary,
+} = require('../utils/sessionStore');
+
+const GREETING = `Hi! 👋 I'm *KINO*, the rental assistant for *TWENTYONESEVENTEEN* 🎬
+
+I can help you with:
+• Gear recommendations for your shoot
+• Package info & pricing
+• Availability checks
+• Getting you a quote
+
+What are you looking for today? / Apa yang you nak hari ni?`;
+
+/**
+ * Main entry point. Called by the Respond.io webhook for every incoming message.
+ *
+ * @param {string} waId   - Customer's phone number e.g. "60123456789"
+ * @param {string} text   - Message text
+ * @param {string} [name] - Customer display name from WhatsApp
+ */
+async function handleIncomingMessage(waId, text, name = 'Customer') {
+  if (!text || !text.trim()) return;
+
+  const trimmedText = text.trim();
+
+  // ── Bot is silent when conversation is with human ─────────────────────────
+  if (isHandedOff(waId)) {
+    console.log(`[KINO] ${waId} is with human — bot silent`);
+    return;
+  }
+
+  // ── Greeting trigger ──────────────────────────────────────────────────────
+  const lower   = trimmedText.toLowerCase();
+  const history = getSession(waId);
+  const greetingTriggers = ['hi', 'hello', 'hey', 'start', 'mula', 'hai', 'alo', 'helo'];
+
+  if (history.length === 0 && greetingTriggers.some(g => lower === g)) {
+    // Upsert contact in Respond.io so it appears in inbox from first message
+    await upsertContact(waId, name);
+    addMessage(waId, 'user', trimmedText);
+    addMessage(waId, 'assistant', GREETING);
+    await sendMessage(waId, GREETING);
+    return;
+  }
+
+  // ── Layer 1: Pattern extraction (instant) ────────────────────────────────
+  extractAndUpdateForm(waId, trimmedText);
+
+  // ── Build form-aware context for KINO ────────────────────────────────────
+  const missing = getMissingFields(waId);
+  const formContext = missing.length > 0
+    ? `\n[SYSTEM: Enquiry form status — still missing: ${missing.join(', ')}. Collect these naturally before generating a quote.]`
+    : `\n[SYSTEM: Enquiry form is COMPLETE. All 5 fields collected. Ready to generate quote.]`;
+
+  console.log(`[KINO] ${waId}: "${trimmedText.substring(0, 80)}..." | missing: [${missing.join(', ') || 'none'}]`);
+
+  // ── Layers 2 + 3: KINO reply AND semantic extraction — in parallel ────────
+  const [kinoResult, semanticResult] = await Promise.all([
+    askKino(history, trimmedText + formContext),
+    extractFormFields(trimmedText, history),
+  ]);
+
+  const { reply, handoffTriggered } = kinoResult;
+
+  // ── Merge semantic extraction results ────────────────────────────────────
+  if (semanticResult) {
+    const formUpdate = mapToFormUpdate(semanticResult);
+    if (formUpdate) {
+      updateForm(waId, formUpdate);
+      console.log(`[SemanticExtractor] Auto-filled: ${Object.keys(formUpdate).join(', ')} for ${waId}`);
+    }
+  }
+
+  // ── Store messages ────────────────────────────────────────────────────────
+  addMessage(waId, 'user', trimmedText);
+  addMessage(waId, 'assistant', reply);
+
+  // ── Send reply to customer ────────────────────────────────────────────────
+  await sendMessage(waId, reply);
+
+  // ── Handoff ───────────────────────────────────────────────────────────────
+  if (handoffTriggered) {
+    console.log(`[KINO] Handoff triggered for ${waId}`);
+    markHandedOff(waId);
+
+    // Post completed enquiry form as an internal note in Respond.io
+    // Staff see this immediately when they open the conversation
+    const formNote = formatFormSummary(waId);
+    await Promise.all([
+      assignToTeam(waId),
+      addNote(waId, `KINO Enquiry Form\n${formNote}`),
+      notifyHandoff(waId, name, trimmedText, reply),
+    ]);
+  }
+}
+
+module.exports = { handleIncomingMessage };

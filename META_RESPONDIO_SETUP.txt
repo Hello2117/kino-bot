@@ -1,0 +1,258 @@
+# Meta Cloud API + Respond.io Setup Guide
+## KINO — TWENTYONESEVENTEEN WhatsApp Bot
+## Total cost: ~RM20/month (Railway only). WhatsApp fees: RM0–25/month.
+═══════════════════════════════════════════════════════════════
+
+## OVERVIEW
+
+What you're setting up:
+
+  Your WhatsApp number
+        ↓
+  Meta Cloud API (free — handles WhatsApp routing)
+        ↓
+  Respond.io (free plan — team inbox for your staff)
+        ↓  (forwards messages to your server)
+  KINO on Railway (~RM20/month — the AI brain)
+        ↓
+  Respond.io API → Customer's WhatsApp
+
+═══════════════════════════════════════════════════════════════
+
+## PART 1 — META BUSINESS MANAGER
+## Time: ~15 minutes
+
+### Step 1.1 — Create Meta Business Manager
+
+1. Go to business.facebook.com
+2. Click "Create Account"
+3. Fill in:
+   - Business name: TWENTYONESEVENTEEN Studio Sdn Bhd
+   - Your name
+   - Business email (use your 2117 email)
+4. Verify your email
+
+### Step 1.2 — Add Your Business Details
+
+In Business Manager → Business Settings → Business Info:
+- Legal business name: TWENTYONESEVENTEEN Studio Sdn Bhd
+- Registration number: 202001036868
+- Business category: Professional Services
+- Address: Your Petaling Jaya address
+
+### Step 1.3 — Create a Meta Developer App
+
+1. Go to developers.facebook.com
+2. Click "My Apps" → "Create App"
+3. App type: Business
+4. App name: KINO-2117 (or anything you like)
+5. Business account: Select TWENTYONESEVENTEEN from the dropdown
+
+### Step 1.4 — Add WhatsApp Product
+
+1. In your new app → Add Products → WhatsApp → Set Up
+2. Click "WhatsApp" in the left sidebar → "Getting Started"
+3. You'll see a test phone number provided by Meta — use this for initial testing
+
+### Step 1.5 — Add Your Real WhatsApp Number
+
+1. WhatsApp → Phone Numbers → Add Phone Number
+2. Enter your 2117 WhatsApp number (e.g. +601X-XXXXXXX)
+3. Choose OTP method: SMS or voice call
+4. Enter the OTP you receive
+5. Your number is now registered ✅
+
+Note: This number CANNOT be used in the regular WhatsApp or WhatsApp Business app anymore.
+It will only work via the API. Make sure you're ready for this before proceeding.
+
+### Step 1.6 — Get Your Credentials
+
+You need these — write them down:
+
+From WhatsApp → Getting Started:
+  • Phone Number ID    (looks like: 123456789012345)
+  • WhatsApp Business Account ID
+
+From App Dashboard → Settings → Basic:
+  • App ID
+  • App Secret
+
+From WhatsApp → Configuration:
+  • Generate a permanent access token (System User token — see below)
+
+### Step 1.7 — Generate a Permanent Access Token
+
+Temporary tokens expire in 24 hours. You need a permanent one.
+
+1. Business Settings → System Users → Add
+2. Name: kino-bot, Role: Admin
+3. Click the system user → Add Assets
+4. Select your WhatsApp Business Account → Full Control → Save
+5. Generate Token → Select your app → Permissions needed:
+   - whatsapp_business_messaging
+   - whatsapp_business_management
+6. Copy the token → add to .env as META_ACCESS_TOKEN
+
+(Add META_ACCESS_TOKEN to your .env — you'll use this in Respond.io setup)
+
+═══════════════════════════════════════════════════════════════
+
+## PART 2 — RESPOND.IO SETUP
+## Time: ~20 minutes
+
+### Step 2.1 — Create Respond.io Account
+
+1. Go to app.respond.io
+2. Sign up (free — no credit card needed)
+3. Free plan includes:
+   - 3 team members (you + 2 staff)
+   - Unlimited contacts
+   - 1 WhatsApp channel
+   - API access
+
+### Step 2.2 — Connect Your WhatsApp Number
+
+1. Respond.io → Settings → Channels → Add Channel → WhatsApp Cloud API
+2. Click "Connect with Facebook"
+3. Log in with the Facebook account connected to your Business Manager
+4. Select: TWENTYONESEVENTEEN Studio Sdn Bhd
+5. Select your WhatsApp Business Account
+6. Select your phone number
+7. Click Connect ✅
+
+Your WhatsApp number is now live in Respond.io.
+
+### Step 2.3 — Get Your Channel ID
+
+1. Respond.io → Settings → Channels
+2. Click your WhatsApp channel
+3. Look at the URL: app.respond.io/settings/channels/12345
+4. That number (12345) is your RESPOND_CHANNEL_ID
+5. Add it to your .env
+
+### Step 2.4 — Get Your API Key
+
+1. Respond.io → Settings → Developer → API Keys
+2. Click "Create API Key"
+3. Name: kino-bot
+4. Copy the key → add to .env as RESPOND_API_KEY
+
+### Step 2.5 — Add Team Members
+
+1. Respond.io → Settings → Teammates → Invite Teammate
+2. Enter each staff member's email
+3. Role: Agent (can see and reply to conversations)
+4. They accept the email invite → access granted
+5. Remind them to download the Respond.io mobile app (iOS + Android)
+
+### Step 2.6 — Set Up the Webhook (Message Forwarding to KINO)
+
+This is what sends incoming messages from Respond.io to your KINO server.
+
+1. Respond.io → Settings → Integrations → Webhooks → Add Webhook
+2. URL: https://your-app.railway.app/webhook/respond
+3. Events to enable:
+   ✅ contact.message.created  (inbound messages)
+4. Save
+
+Test it: Respond.io will send a test ping to your server.
+Check Railway logs — you should see the request come in.
+
+### Step 2.7 — Set Up Automation (Bot Enable/Disable)
+
+This tells Respond.io to let KINO handle conversations unless assigned to a human.
+
+1. Respond.io → Workflows → Create Workflow
+2. Name: KINO Bot Handler
+3. Trigger: Conversation Opened
+4. Action: Assign to Unassigned (so KINO can handle it via webhook)
+
+When KINO triggers a handoff:
+- KINO calls Respond.io API to unassign the conversation
+- It appears as "Unassigned" in the team inbox
+- Staff picks it up in Respond.io
+- KINO goes silent for that conversation
+- To re-enable KINO: POST /admin/resume-bot from your admin panel
+
+═══════════════════════════════════════════════════════════════
+
+## PART 3 — RAILWAY DEPLOYMENT
+## (Same as before — just the env vars change)
+
+### Step 3.1 — Update .env on Railway
+
+In Railway → your project → Variables, update/add:
+
+  ANTHROPIC_API_KEY        = (your Claude API key)
+  BOOQABLE_API_KEY         = (your new Booqable key)
+  BOOQABLE_BASE_URL        = https://2117rental.booqable.com/api/1
+  META_VERIFY_TOKEN        = kino2117verifyXYZ   (make up anything)
+  RESPOND_API_KEY          = (from Step 2.4)
+  RESPOND_CHANNEL_ID       = (from Step 2.3)
+  ADMIN_SECRET             = (any strong random string)
+  TELEGRAM_BOT_TOKEN       = (optional)
+  TELEGRAM_CHAT_ID         = (optional)
+
+Remove WATI_API_KEY and WATI_BASE_URL if they exist.
+
+### Step 3.2 — Set Webhook URL in Meta Developer App
+
+Even though messages flow through Respond.io, Meta still needs
+to know about your server for webhook verification.
+
+1. Meta Developer App → WhatsApp → Configuration → Webhooks
+2. Callback URL: https://your-app.railway.app/webhook/meta
+3. Verify Token: (same value as your META_VERIFY_TOKEN in .env)
+4. Click Verify and Save ✅
+5. Subscribe to: messages
+
+### Step 3.3 — Deploy and test
+
+Railway auto-deploys on git push.
+
+Check health: GET https://your-app.railway.app/
+Expected: { "status": "KINO is live 🎬", "channel": "Meta Cloud API via Respond.io", ... }
+
+═══════════════════════════════════════════════════════════════
+
+## PART 4 — END-TO-END TEST
+
+1. Open WhatsApp on your personal phone
+2. Message your 2117 business number: "Hi"
+3. Expected within 5 seconds: KINO greeting appears
+4. Check Respond.io inbox — conversation should appear
+5. Try a full enquiry: gear + dates + invoice
+6. Say "I need to speak to someone" → KINO hands off
+7. In Respond.io: conversation moves to Unassigned, internal note with form appears
+8. Staff assigns to themselves and replies
+9. KINO stays silent ✅
+
+═══════════════════════════════════════════════════════════════
+
+## MONTHLY COST SUMMARY
+
+  Meta Cloud API          RM0      (free tier covers ~1,000 convos/month)
+  Meta conversation fees  RM0–25   (customer-initiated = very cheap)
+  Respond.io              RM0      (free plan, 3 users)
+  Railway Hobby plan      RM20     (~USD5/month)
+  ──────────────────────────────
+  TOTAL                   ~RM20–45/month
+
+  vs WATI: ~RM185/month
+
+═══════════════════════════════════════════════════════════════
+
+## IF YOU OUTGROW THE FREE PLAN
+
+Respond.io paid plan (Team, ~USD79/month) adds:
+  - Unlimited teammates
+  - Automation workflows
+  - Analytics
+
+But for a team of 4, the free plan (3 users) should be sufficient for a long time.
+Alternatively, upgrade to Respond.io Pro or migrate to WATI if you hit the limits.
+
+═══════════════════════════════════════════════════════════════
+Meta + Respond.io Setup Guide v1.0
+TWENTYONESEVENTEEN Studio Sdn Bhd 202001036868 (1393189-K)
+═══════════════════════════════════════════════════════════════

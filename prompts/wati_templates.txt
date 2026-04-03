@@ -1,0 +1,204 @@
+# KINO — WhatsApp Message Templates
+# Submit these in WATI Dashboard → Templates → Add Template
+# All templates require Meta approval (usually 24-48 hours)
+# Language: en (English) and ms (Bahasa Malaysia)
+# Category options: MARKETING, UTILITY, AUTHENTICATION
+# ============================================================
+
+
+## ────────────────────────────────────────────────────────
+## TEMPLATE 1: WELCOME / FIRST CONTACT
+## Use: First message to a new lead (outside 24hr session window)
+## Category: UTILITY
+## ────────────────────────────────────────────────────────
+
+Name: kino_welcome_en
+Language: en
+Body:
+Hi {{1}}! 👋 Welcome to *TWENTYONESEVENTEEN* Cinema Equipment Rental.
+
+I'm KINO, your rental assistant. 🎬
+
+I can help you with gear recommendations, package info, pricing, and getting you a quote — all right here on WhatsApp.
+
+What are you working on? Just tell me about your shoot and we'll get you set up!
+
+---
+
+Name: kino_welcome_bm
+Language: ms (Bahasa Malaysia)
+Body:
+Hai {{1}}! 👋 Selamat datang ke *TWENTYONESEVENTEEN* Cinema Equipment Rental.
+
+Saya KINO, assistant sewa gear you. 🎬
+
+Saya boleh bantu dengan cadangan gear, info pakej, harga, dan buat quotation — semua di sini je dalam WhatsApp.
+
+You tengah buat apa? Cerita sikit pasal shoot you dan kita settlekan sama-sama!
+
+---
+
+
+## ────────────────────────────────────────────────────────
+## TEMPLATE 2: QUOTE READY NOTIFICATION
+## Use: When a Booqable quote link is ready to send
+## Category: UTILITY
+## ────────────────────────────────────────────────────────
+
+Name: kino_quote_ready_en
+Language: en
+Body:
+Hi {{1}}! 🎬 Your rental quote from *TWENTYONESEVENTEEN* is ready.
+
+*Quote Summary:*
+📦 Gear: {{2}}
+📅 Dates: {{3}}
+💰 Total (before SST): RM{{4}}
+
+👉 View your full quote here: {{5}}
+
+Our team will follow up to confirm availability and payment details. Feel free to reply here with any questions!
+
+---
+
+Name: kino_quote_ready_bm
+Language: ms
+Body:
+Hai {{1}}! 🎬 Quotation sewa gear dari *TWENTYONESEVENTEEN* dah siap.
+
+*Ringkasan Quotation:*
+📦 Gear: {{2}}
+📅 Tarikh: {{3}}
+💰 Jumlah (sebelum SST): RM{{4}}
+
+👉 Tengok quotation penuh kat sini: {{5}}
+
+Team kami akan follow up untuk confirm ketersediaan dan butiran bayaran. Boleh reply di sini kalau ada soalan!
+
+---
+
+
+## ────────────────────────────────────────────────────────
+## TEMPLATE 3: BOOKING CONFIRMATION
+## Use: After payment is confirmed, before collection day
+## Category: UTILITY
+## ────────────────────────────────────────────────────────
+
+Name: kino_booking_confirmed_en
+Language: en
+Body:
+Hi {{1}}! ✅ Your booking with *TWENTYONESEVENTEEN* is confirmed.
+
+*Booking Details:*
+📦 Gear: {{2}}
+📅 Collection: {{3}} (one day before shoot)
+📅 Return: {{4}} (one day after shoot)
+📍 Address: {{5}}
+
+*Payment:* {{6}}
+
+Please arrive with your IC. See you soon! 🎬
+
+---
+
+Name: kino_booking_confirmed_bm
+Language: ms
+Body:
+Hai {{1}}! ✅ Tempahan you dengan *TWENTYONESEVENTEEN* dah disahkan.
+
+*Butiran Tempahan:*
+📦 Gear: {{2}}
+📅 Ambil: {{3}} (sehari sebelum shoot)
+📅 Pulang: {{4}} (sehari selepas shoot)
+📍 Alamat: {{5}}
+
+*Bayaran:* {{6}}
+
+Sila bawa IC semasa ambil. Jumpa nanti! 🎬
+
+---
+
+
+## ────────────────────────────────────────────────────────
+## TEMPLATE 4: FOLLOW-UP (no response after quote)
+## Use: Customer received quote but hasn't responded in 48hrs
+## Category: MARKETING
+## ────────────────────────────────────────────────────────
+
+Name: kino_followup_en
+Language: en
+Body:
+Hi {{1}}! 👋 Just checking in from *TWENTYONESEVENTEEN*.
+
+We sent over your quote for {{2}} — did you get a chance to review it?
+
+If you have any questions on the gear, pricing, or availability, just reply here and I'll sort it out for you. 🎬
+
+---
+
+Name: kino_followup_bm
+Language: ms
+Body:
+Hai {{1}}! 👋 Sekadar nak check in dari *TWENTYONESEVENTEEN*.
+
+Kami dah hantar quotation untuk {{2}} — sempat tengok tak?
+
+Kalau ada soalan pasal gear, harga, atau ketersediaan, reply je kat sini dan saya akan bantu. 🎬
+
+---
+
+
+## ────────────────────────────────────────────────────────
+## TEMPLATE 5: RETURN REMINDER
+## Use: Day before gear return date
+## Category: UTILITY
+## ────────────────────────────────────────────────────────
+
+Name: kino_return_reminder_en
+Language: en
+Body:
+Hi {{1}}! 🎬 Quick reminder from *TWENTYONESEVENTEEN*.
+
+Your gear return is due *tomorrow, {{2}}*.
+
+Please ensure all items are packed and ready. If you need to extend your rental, reply here as soon as possible and we'll check availability!
+
+---
+
+Name: kino_return_reminder_bm
+Language: ms
+Body:
+Hai {{1}}! 🎬 Peringatan ringkas dari *TWENTYONESEVENTEEN*.
+
+Gear perlu dipulangkan *esok, {{2}}*.
+
+Sila pastikan semua item dah dibungkus dan bersedia. Kalau nak lanjut tempahan, reply segera dan kami akan check ketersediaan!
+
+---
+
+
+## ────────────────────────────────────────────────────────
+## TEMPLATE VARIABLES REFERENCE
+## ────────────────────────────────────────────────────────
+
+# kino_welcome:             {{1}} = customer first name
+# kino_quote_ready:         {{1}} = name, {{2}} = gear summary, {{3}} = dates,
+#                           {{4}} = total (pre-SST), {{5}} = quote URL
+# kino_booking_confirmed:   {{1}} = name, {{2}} = gear, {{3}} = collection date,
+#                           {{4}} = return date, {{5}} = address, {{6}} = payment info
+# kino_followup:            {{1}} = name, {{2}} = gear/package name
+# kino_return_reminder:     {{1}} = name, {{2}} = return date
+
+
+## ────────────────────────────────────────────────────────
+## SUBMISSION CHECKLIST FOR EACH TEMPLATE
+## ────────────────────────────────────────────────────────
+
+# ✅ Log in to WATI Dashboard
+# ✅ Go to Templates → Request New Template
+# ✅ Set Category (UTILITY for transactional, MARKETING for follow-ups)
+# ✅ Paste body text above
+# ✅ Map each {{N}} as a variable
+# ✅ Submit for Meta approval
+# ✅ Wait 24-48 hours for approval
+# ✅ Test with your own number before going live

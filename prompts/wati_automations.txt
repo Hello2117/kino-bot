@@ -1,0 +1,135 @@
+# WATI Automation Rules
+# Set these up in WATI Dashboard → Automation → Create Automation
+# These run server-side in WATI without needing your webhook.
+# ================================================================
+
+
+## ────────────────────────────────────────────────────────
+## AUTOMATION 1: BUSINESS HOURS AUTO-REPLY
+## Trigger: New message received
+## Condition: Current time is OUTSIDE business hours
+## Action: Send template message
+## ────────────────────────────────────────────────────────
+
+Name: Outside Hours Reply
+Trigger: Message received
+Conditions:
+  - Time is NOT between 09:00 and 18:00 (MYT, Mon-Sat)
+
+Action: Send message
+Message:
+  Hi there! 👋 Thanks for reaching out to *TWENTYONESEVENTEEN*.
+
+  We're currently outside business hours (9am–6pm, Mon–Sat).
+
+  KINO will still try to help you right away! If you need to speak to our team directly, we'll get back to you first thing during business hours. 🎬
+
+
+## ────────────────────────────────────────────────────────
+## AUTOMATION 2: UNASSIGNED CONVERSATION ALERT
+## Trigger: Conversation becomes unassigned (KINO handoff)
+## Action: Send internal notification to all agents
+## ────────────────────────────────────────────────────────
+
+Name: Handoff Alert to Team
+Trigger: Conversation assigned to "No Agent" (unassigned)
+Action: Notify all agents (push notification + email)
+Message to agents:
+  ⚡ KINO has handed off a conversation.
+  Customer needs human attention — please review in the inbox.
+
+
+## ────────────────────────────────────────────────────────
+## AUTOMATION 3: AUTO-CLOSE STALE CONVERSATIONS
+## Trigger: Conversation has had no activity for 48 hours
+## Condition: Conversation is still open
+## Action: Send closing message + mark resolved
+## ────────────────────────────────────────────────────────
+
+Name: Auto-close Stale Conversations
+Trigger: No activity for 48 hours
+Conditions:
+  - Conversation status = Open
+
+Action 1: Send message
+  Hi! 👋 Just checking — are you still looking to rent gear from *TWENTYONESEVENTEEN*?
+
+  If you'd like to continue, just reply here and KINO will pick up right where we left off. Otherwise, we'll close this chat for now. See you on set! 🎬
+
+Action 2: Wait 24 hours
+Action 3: If no reply → Mark conversation as Resolved
+
+
+## ────────────────────────────────────────────────────────
+## AUTOMATION 4: NEW CONTACT WELCOME
+## Trigger: New contact sends first-ever message
+## Action: Send welcome template (before KINO kicks in)
+## Note: Only fires once per contact lifetime
+## ────────────────────────────────────────────────────────
+
+Name: New Contact Welcome
+Trigger: First message from a new contact
+Action: Send template kino_welcome_en
+  (WATI detects language preference — send BM version if contact is BM-language)
+
+
+## ────────────────────────────────────────────────────────
+## AUTOMATION 5: KEYWORD QUICK REPLIES
+## These fire instantly for common single-word queries
+## before the message reaches the KINO webhook
+## ────────────────────────────────────────────────────────
+
+Name: Catalogue Link
+Trigger: Message contains keyword "catalogue" or "catalog" or "list"
+Action: Send message
+  Here's our full rental catalogue: https://www.2117.rentals/collections 🎬
+  Anything specific you're looking for? Tell me about your shoot!
+
+---
+
+Name: Packages Link
+Trigger: Message contains keyword "package" or "pakej"
+Action: Send message
+  We have 3 curated packages:
+
+  🎬 *Creator Ready* — RM1,500/day
+  Sony FX3/FX6 + Sony GM lenses + full accessories
+
+  🎬 *Commercial Pro* — RM3,000/day
+  RED V-Raptor/Sony Burano 8K + cinema lens set + full set accessories
+
+  🎬 *Signature Series* — RM4,500/day
+  ARRI Alexa 35 / Alexa Mini LF / Sony Venice 2 + premium optics
+
+  Which one sounds like a fit? Tell me about your shoot and I'll help narrow it down! 😊
+
+---
+
+Name: Human Agent Request
+Trigger: Message contains "speak to someone" or "talk to agent" or "human" or "staff" or "team"
+Action: Assign to unassigned queue + Send message
+  Sure! Let me get one of our team members to assist you. 👋
+  Expect a reply shortly during business hours (9am–6pm, Mon–Sat). 🎬
+
+
+## ────────────────────────────────────────────────────────
+## TEAM INBOX SETUP IN WATI
+## ────────────────────────────────────────────────────────
+
+Step-by-step to add staff:
+1. WATI Dashboard → Settings → Team Members
+2. Click "Add Member"
+3. Enter staff email address
+4. Choose role:
+   - Admin: Full access (manage settings, view all chats, send messages)
+   - Agent: Chat access only (view assigned chats, send messages)
+5. Staff receives email invite → they set a password → done
+
+Conversation assignment:
+- "Unassigned" pool = visible to all agents, anyone can pick up
+- Assigned to specific agent = only that agent + admins can see
+- KINO handoffs go to Unassigned automatically
+
+Mobile access:
+- Staff can download the WATI mobile app (iOS + Android)
+- Full inbox access on mobile — get push notifications for new handoffs

@@ -1,0 +1,208 @@
+# KINO Launch Checklist
+## TWENTYONESEVENTEEN — WhatsApp Bot Go-Live
+## Work through this top to bottom. Tick each item before moving on.
+═══════════════════════════════════════════════════════════════
+
+## PHASE 1 — ACCOUNTS & KEYS
+══════════════════════════════
+
+[ ] 1.1  Regenerate Booqable API key
+         Booqable → Settings → API → Revoke → Generate New
+         Store new key in .env ONLY
+
+[ ] 1.2  Get Anthropic API key
+         console.anthropic.com → API Keys → Create Key
+         Add to .env as ANTHROPIC_API_KEY
+
+[ ] 1.3  Register WATI account
+         wati.io → Start Free Trial (Growth plan ~USD40/mo)
+         Connect your 2117 WhatsApp Business number
+
+[ ] 1.4  Get WATI API credentials
+         WATI Dashboard → API Docs → copy API key and Base URL
+         Add both to .env
+
+[ ] 1.5  Set admin secret
+         Generate a random string (e.g. 32 random chars)
+         Add to .env as ADMIN_SECRET
+
+[ ] 1.6  (Optional) Create Telegram bot for staff alerts
+         Message @BotFather on Telegram → /newbot
+         Get token → add to .env as TELEGRAM_BOT_TOKEN
+         Get your group chat ID via @userinfobot
+         Add to .env as TELEGRAM_CHAT_ID
+
+───────────────────────────────────────────────────────────────
+
+## PHASE 2 — LOCAL SETUP & TESTING
+════════════════════════════════════
+
+[ ] 2.1  Unzip kino-bot.zip and navigate into folder
+         cd kino-bot
+
+[ ] 2.2  Install dependencies
+         npm install
+
+[ ] 2.3  Copy env template and fill in values
+         cp .env.example .env
+         nano .env   (fill all values)
+
+[ ] 2.4  Run discount engine tests
+         node test/kinoTest.js
+         Confirm: "5/5 discount tests passed"
+
+[ ] 2.5  Run interactive chat test with your own messages
+         node test/kinoTest.js -i
+         Test: lost customer, budget question, package enquiry, BM message
+
+[ ] 2.6  Run all automated scenarios
+         node test/kinoTest.js
+         Review each KINO response for tone and accuracy
+
+[ ] 2.7  Fix any issues in prompts/kino_system.txt
+         No code changes needed — just edit the prompt file
+
+───────────────────────────────────────────────────────────────
+
+## PHASE 3 — DEPLOY TO RAILWAY
+══════════════════════════════
+
+[ ] 3.1  Create a GitHub repo
+         git init
+         git add .
+         git commit -m "KINO v1.0 — initial deploy"
+         git remote add origin https://github.com/yourorg/kino-bot.git
+         git push -u origin main
+
+[ ] 3.2  Connect Railway to GitHub
+         railway.app → New Project → Deploy from GitHub Repo
+         Select kino-bot repo
+
+[ ] 3.3  Add environment variables in Railway
+         Railway Dashboard → Variables → Add all from .env
+         (Do NOT commit .env to GitHub)
+
+[ ] 3.4  Deploy and confirm health check
+         Railway auto-deploys → copy the generated URL
+         Open: https://your-app.railway.app/
+         Expected: { "status": "KINO is live 🎬", ... }
+
+[ ] 3.5  Test admin endpoints
+         POST https://your-app.railway.app/admin/stats?secret=YOUR_SECRET
+         Confirm it returns session/uptime data
+
+───────────────────────────────────────────────────────────────
+
+## PHASE 4 — WATI CONFIGURATION
+══════════════════════════════════
+
+[ ] 4.1  Set webhook URL in WATI
+         WATI Dashboard → Settings → Webhooks
+         URL: https://your-app.railway.app/webhook/wati
+         Event: message.received → Save
+
+[ ] 4.2  Add team members to WATI inbox
+         Settings → Team Members → Add Member
+         Add each staff email → set role (Admin or Agent)
+         Staff accept email invite
+
+[ ] 4.3  Submit WhatsApp message templates for Meta approval
+         WATI Dashboard → Templates → Request New Template
+         Submit all 5 templates from prompts/wati_templates.txt
+         Wait 24-48 hours for Meta approval
+
+[ ] 4.4  Set up WATI automations
+         WATI Dashboard → Automation → Create
+         Set up all 5 automations from prompts/wati_automations.txt
+
+[ ] 4.5  Configure business hours in WATI
+         Settings → Business Hours → Set 9am–6pm Mon–Sat (MYT)
+
+───────────────────────────────────────────────────────────────
+
+## PHASE 5 — END-TO-END TESTING
+═════════════════════════════════
+
+[ ] 5.1  Send a WhatsApp message to your 2117 number from your personal phone
+         Expected: KINO replies within 5 seconds
+
+[ ] 5.2  Test full conversation flow
+         - Say "Hi" → confirm KINO greeting
+         - Ask about a package → confirm correct package details
+         - Ask about payment → confirm correct policy (no deposit, full payment)
+         - Ask about delivery → confirm KINO doesn't give a price
+         - Say "I want to talk to someone" → confirm handoff fires
+
+[ ] 5.3  Test WATI team inbox
+         - Confirm handoff conversation appears as Unassigned
+         - Confirm staff can see it and assign to themselves
+         - Confirm bot goes silent after handoff
+         - Call resume-bot endpoint → confirm bot picks up again
+
+[ ] 5.4  Test with a BM message
+         - Send "Hai, nak sewa lens untuk shoot MV"
+         - Confirm KINO replies in BM
+
+[ ] 5.5  Test budget flow
+         - Say "Budget saya RM500 je" → KINO should NOT react negatively
+         - Confirm it asks about shoot type before recommending
+
+[ ] 5.6  Test multi-day discount explanation
+         - Ask for 5-day rental → confirm KINO mentions 3-day rate applies
+
+[ ] 5.7  Test volume discount
+         - Build a quote scenario that hits RM5,000 → confirm 10% applied automatically
+
+───────────────────────────────────────────────────────────────
+
+## PHASE 6 — GO LIVE
+═════════════════════
+
+[ ] 6.1  Announce to team — share WATI mobile app download link with all staff
+
+[ ] 6.2  Brief the team on handoff workflow:
+         - KINO handles first contact
+         - Unassigned = needs human
+         - Assign to yourself → reply directly
+         - Call resume-bot when done if you want KINO to continue
+
+[ ] 6.3  Set Railway to auto-restart on failure
+         railway.toml already configured for this ✅
+
+[ ] 6.4  Monitor first 48 hours closely
+         Check Railway logs: railway logs --tail
+         Check WATI inbox for any missed handoffs
+
+[ ] 6.5  Week 2: Review KINO tone and accuracy
+         Read through conversation logs in WATI
+         Edit prompts/kino_system.txt to fix anything off
+         Git push → Railway auto-deploys the update
+
+───────────────────────────────────────────────────────────────
+
+## ONGOING MAINTENANCE
+═══════════════════════
+
+Weekly:
+  [ ] Review WATI inbox for unanswered questions
+  [ ] Check Railway logs for errors
+  [ ] Update kino_system.txt if pricing or gear changes
+
+Monthly:
+  [ ] Review quote conversion rate (how many chats → Booqable quotes)
+  [ ] Tune system prompt based on common questions KINO struggled with
+  [ ] Check WATI plan usage — upgrade if hitting message limits
+
+When gear catalogue changes:
+  [ ] Update CATALOGUE section in prompts/kino_system.txt
+  [ ] Git push → auto-deploys
+
+When package pricing changes:
+  [ ] Update CUSTOM PACKAGES section in kino_system.txt
+  [ ] Update wati_templates.txt (template kino_quote_ready)
+  [ ] Re-submit updated templates to Meta if body text changed
+
+═══════════════════════════════════════════════════════════════
+KINO Launch Checklist v1.0
+TWENTYONESEVENTEEN Studio Sdn Bhd 202001036868 (1393189-K)
+═══════════════════════════════════════════════════════════════

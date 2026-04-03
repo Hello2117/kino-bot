@@ -1,0 +1,10 @@
+# railway.toml — Deploy KINO on Railway
+# Push this repo to GitHub, connect to Railway, set env vars, deploy.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "node server.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

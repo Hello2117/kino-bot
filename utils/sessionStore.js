@@ -247,11 +247,14 @@ async function isHandedOff(waId) {
       var result = await supabase
         .from('kino_sessions')
         .select('handed_off')
-        .eq('wa_id', waId)
-        .single();
-      if (result.error || !result.data) return false;
-      return result.data.handed_off === true;
+        .eq('wa_id', waId);
+      
+      // No rows = not handed off
+      if (!result.data || result.data.length === 0) return false;
+      
+      return result.data[0].handed_off === true;
     } catch(e) {
+      console.error('[SessionStore] isHandedOff error:', e.message);
       return false;
     }
   }

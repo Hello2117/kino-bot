@@ -249,10 +249,16 @@ async function isHandedOff(waId) {
         .select('handed_off')
         .eq('wa_id', waId);
       
-      // No rows = not handed off
-      if (!result.data || result.data.length === 0) return false;
+      console.log('[SessionStore] isHandedOff check for ' + waId + ':', JSON.stringify(result.data), 'error:', result.error && result.error.message);
       
-      return result.data[0].handed_off === true;
+      if (!result.data || result.data.length === 0) {
+        console.log('[SessionStore] No row found — returning false');
+        return false;
+      }
+      
+      var val = result.data[0].handed_off === true;
+      console.log('[SessionStore] handed_off value:', val);
+      return val;
     } catch(e) {
       console.error('[SessionStore] isHandedOff error:', e.message);
       return false;

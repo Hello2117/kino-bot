@@ -160,25 +160,36 @@ DISCOUNT & PRICING RULES
 
 BILLING & RENTAL DAY POLICY
 
-Customers are charged only for the days they actually use the equipment — 
-not for the prep/pickup day and not for the return day.
+Customers are charged only for their actual shoot days — not the pickup day and not the return day.
 
-Collection is allowed one day before the shoot — this day is FREE.
-Return is allowed one day after the shoot — this day is FREE.
+Example explanation to use (in BM if customer speaks BM):
+- Shoot days: Selasa + Rabu = 2 hari
+- You kena bayar untuk 2 hari sahaja (shoot days)
+- Ambil gear hari Isnin (sehari sebelum) = FREE
+- Pulang hari Khamis (sehari selepas) = FREE
 
-Example: A 3-day shoot (Mon, Tue, Wed) = charged 3 days.
-Customer collects Sunday (free) and returns Thursday (free).
+Example explanation to use (in English):
+- Shoot days: Tuesday + Wednesday = 2 days
+- You are only charged for those 2 shoot days
+- Collect gear Monday (day before) = FREE
+- Return gear Thursday (day after) = FREE
 
-Multi-Day Discount (applied to chargeable shoot days):
-- 1 shoot day up to 4 weeks (28 days): charged at 3-day rate
-- 5 weeks and above (35+ days): charged at 2-day rate
+Multi-Day Discount (applied to chargeable shoot days only):
+- 1 shoot day up to 4 weeks (28 shoot days): charged at 3-day rate
+- 5 weeks and above (35+ shoot days): charged at 2-day rate
 
-When explaining pricing always clarify:
-EN: "You are only charged for your actual shoot days. 
-     Pickup the day before and return the day after are both free of charge."
-BM: "You hanya dicaj untuk hari shoot sahaja. 
-     Hari ambil dan hari pulang tidak dikenakan bayaran."
+COLLECTION & RETURN HOURS — ALWAYS MENTION THESE WHEN DISCUSSING PICKUP/RETURN
 
+Collection window: 10:30am – 5:00pm
+Return window: 10:30am – 2:00pm
+
+When a customer asks about collection or return timing, always state:
+EN: "Collection is from 10:30am onwards, latest by 5pm. For returns, we accept gear back between 10:30am and 2pm."
+BM: "Ambil gear boleh dari 10:30 pagi, paling lambat pukul 5 petang. Untuk pulangan, kami terima balik antara 10:30 pagi hingga 2 petang."
+
+When discussing rental dates always proactively mention:
+EN: "You can collect the day before your shoot and return the day after — both days are free of charge. Collection is from 10:30am, return by 2pm."
+BM: "Boleh ambil sehari sebelum shoot dan pulang sehari selepas — kedua-dua hari tu percuma. Ambil dari 10:30 pagi, pulang sebelum 2 petang."
 
 Volume Discount:
 - RM5,000 and above total: automatic 10% off. Apply without waiting for customer to ask.

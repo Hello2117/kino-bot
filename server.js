@@ -6,25 +6,39 @@ const { resumeBot, getSessionCount } = require('./utils/sessionStore');
 const app = express();
 app.use(express.json());
 
+const processed = new Set();
+
 app.get('/', (req, res) => {
-  res.json({ status: 'KINO is live 🎬', channel: 'WATI', sessions: getSessionCount(), uptime: Math.floor(process.uptime()) + 's' });
+  res.json({ status: 'KINO is live 🎬', sessions: getSessionCount(), uptime: Math.floor(process.uptime()) + 's' });
 });
 
 app.post('/webhook/wati', async (req, res) => {
   res.sendStatus(200);
   try {
     const body = req.body;
-
-    // Ignore outgoing messages (sent by KINO) — only process incoming customer messages
-    if (body.owner === true || body.isOwner === true) return;
-    if (body.eventType && body.eventType !== 'message') return;
+    console.log('[WATI] Payload keys:', Object.keys(body).join(', '));
+    console.log('[WATI] Full payload:', JSON.stringify(body).substring(0, 300));
 
     const waId = body.waId || body.senderWaId;
     const text = body.text || (body.message && body.message.text);
     const name = body.senderName || body.name || 'Customer';
     const type = body.type || (body.message && body.message.type);
+    const msgId = body.id || body.messageId || body.wamid || (body.message && body.message.id);
 
     if (!waId || type !== 'text' || !text) return;
+
+    // Deduplicate — ignore if same message ID seen before
+    if (msgId && processed.has(msgId)) {
+      console.log('[KINO] Duplicate message ignored:', msgId);
+      return;
+    }
+    if (msgId) processed.add(msgId);
+
+    // Only process if not our own message
+    if (body.isOwner || body.owner || body.fromMe) {
+      console.log('[KINO] Ignoring own outgoing message');
+      return;
+    }
 
     await handleIncomingMessage(waId, text, name);
   } catch (err) {

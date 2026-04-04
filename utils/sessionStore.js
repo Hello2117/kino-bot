@@ -252,13 +252,18 @@ async function isHandedOff(waId) {
 
 async function resumeBot(waId) {
   if (supabase) {
-    var row = await dbGet(waId);
-    if (!row) return;
-    var messages = [];
-    var form = emptyForm();
-    try { messages = JSON.parse(row.messages) || []; } catch(e) {}
-    try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
-    await dbUpsert(waId, messages, form, false);
+    try {
+      await supabase
+        .from('kino_sessions')
+        .upsert({
+          wa_id:      waId,
+          handed_off: false,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'wa_id' });
+      console.log('[SessionStore] Bot resumed for ' + waId);
+    } catch(e) {
+      console.error('[SessionStore] resumeBot error:', e.message);
+    }
     return;
   }
   var session = memGet(waId);

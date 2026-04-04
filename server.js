@@ -88,18 +88,31 @@ app.post('/webhook/wati', async (req, res) => {
 
     // Handle document/file messages
     if (type === 'document') {
-      const filename = (body.document && body.document.filename) || 'document';
+      const filename = (body.document && body.document.filename)
+        || body.fileName || body.filename || 'document';
       console.log('[KINO] Document from ' + waId + ':', filename);
-      await handleIncomingMessage(waId, '[Customer sent a document: ' + filename + ']', name);
+
+      // Documents are always equipment lists or briefs — hand off to Jeff
+      const docMessage = 'I have received your document (' + filename + '). '
+        + 'I will pass this to Jeff from our team who will review it and get back to you with a detailed quote. Sit tight!';
+
+      await sendMessage(waId, docMessage);
+
+      // Notify Jeff directly
+      const { notifyJeff } = require('./handlers/watiHandler');
+      await notifyJeff(name, waId, '[Document received: ' + filename + ']');
+
+      // Mark conversation as handed off
+      const { markHandedOff } = require('./utils/sessionStore');
+      const { assignToTeam } = require('./handlers/watiHandler');
+      const { notifyHandoff } = require('./handlers/notificationHandler');
+      markHandedOff(waId);
+      await Promise.all([
+        assignToTeam(waId),
+        notifyHandoff(waId, name, '[Document: ' + filename + ']', docMessage),
+      ]);
       return;
     }
-
-    // All other types — log and ignore
-    console.log('[KINO] Unsupported message type ignored:', type);
-
-  } catch (err) {
-    console.error('[KINO] Webhook error:', err.message);
-  }
 });
 
 // Admin: Resume bot after human handoff

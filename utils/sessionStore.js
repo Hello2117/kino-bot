@@ -1,114 +1,182 @@
 // utils/sessionStore.js
-// Stores per-customer conversation history and enquiry form state.
-// Keyed by WhatsApp number. Auto-expiry after 24 hours of inactivity.
-// For production at scale, swap the Map for Redis.
+// Persistent session store using Supabase.
+// Sessions survive Railway restarts and deployments.
+// Falls back to in-memory if Supabase is not configured.
 
-const sessions = new Map();
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const { createClient } = require('@supabase/supabase-js');
 
 // ─────────────────────────────────────────────
-// ENQUIRY FORM SCHEMA
-// Mirrors the Equipment Rental Form fields.
-// KINO collects these naturally across the conversation.
+// SUPABASE CLIENT
 // ─────────────────────────────────────────────
+
+var supabase = null;
+
+if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+  console.log('[SessionStore] Using Supabase persistent storage');
+} else {
+  console.log('[SessionStore] Supabase not configured — using in-memory storage (sessions will reset on restart)');
+}
+
+// ─────────────────────────────────────────────
+// IN-MEMORY FALLBACK
+// ─────────────────────────────────────────────
+
+var memoryStore = new Map();
+var SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function emptyForm() {
   return {
-    prepPickupDate:   null,   // Prep/pick-up date
-    shootingDate:     null,   // Actual shoot date(s)
-    invoiceType:      null,   // 'individual' or 'company'
-    invoiceDetails:   null,   // Full e-invoice compliant info (object — see below)
-    jobName:          null,   // Project / job name
-    equipmentList:    null,   // Gear items as a string or array
-    formComplete:     false,  // True once all 5 fields are filled
+    prepPickupDate:   null,
+    shootingDate:     null,
+    invoiceType:      null,
+    invoiceDetails:   null,
+    jobName:          null,
+    equipmentList:    null,
+    formComplete:     false,
   };
 }
 
-// invoiceDetails shape:
-//   Individual: { name, icNumber, address, email }
-//   Company:    { companyName, registrationNo, tinNumber, sstNumber,
-//                 address, email, contactPerson }
-
 // ─────────────────────────────────────────────
-// SESSION MANAGEMENT
+// SUPABASE HELPERS
 // ─────────────────────────────────────────────
 
-function _getOrCreate(waId) {
-  const existing = sessions.get(waId);
-  if (existing) {
-    if (Date.now() - existing.lastActive > SESSION_TTL_MS) {
-      sessions.delete(waId);
-      return _fresh();
+async function dbGet(waId) {
+  if (!supabase) return null;
+  try {
+    var result = await supabase
+      .from('kino_sessions')
+      .select('*')
+      .eq('wa_id', waId)
+      .single();
+    if (result.error || !result.data) return null;
+    var row = result.data;
+    // Check TTL
+    if (Date.now() - new Date(row.updated_at).getTime() > SESSION_TTL_MS) {
+      await dbDelete(waId);
+      return null;
     }
-    return existing;
+    return row;
+  } catch (e) {
+    console.error('[SessionStore] dbGet error:', e.message);
+    return null;
   }
-  return _fresh();
 }
 
-function _fresh() {
-  return {
-    messages:   [],
-    form:       emptyForm(),
-    handedOff:  false,
-    lastActive: Date.now(),
-  };
+async function dbUpsert(waId, messages, form, handedOff) {
+  if (!supabase) return;
+  try {
+    await supabase.from('kino_sessions').upsert({
+      wa_id:      waId,
+      messages:   JSON.stringify(messages),
+      form:       JSON.stringify(form),
+      handed_off: handedOff || false,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'wa_id' });
+  } catch (e) {
+    console.error('[SessionStore] dbUpsert error:', e.message);
+  }
 }
 
-function _save(waId, session) {
-  session.lastActive = Date.now();
-  sessions.set(waId, session);
+async function dbDelete(waId) {
+  if (!supabase) return;
+  try {
+    await supabase.from('kino_sessions').delete().eq('wa_id', waId);
+  } catch (e) {
+    console.error('[SessionStore] dbDelete error:', e.message);
+  }
 }
 
 // ─────────────────────────────────────────────
-// MESSAGES
+// MEMORY HELPERS (fallback)
 // ─────────────────────────────────────────────
 
-function getSession(waId) {
-  const session = sessions.get(waId);
-  if (!session) return [];
+function memGet(waId) {
+  var session = memoryStore.get(waId);
+  if (!session) return null;
   if (Date.now() - session.lastActive > SESSION_TTL_MS) {
-    sessions.delete(waId);
-    return [];
+    memoryStore.delete(waId);
+    return null;
   }
-  return session.messages;
+  return session;
 }
 
-function addMessage(waId, role, content) {
-  const session = _getOrCreate(waId);
-  session.messages.push({ role, content });
-  if (session.messages.length > 30) {
-    session.messages = session.messages.slice(-30);
-  }
-  _save(waId, session);
+function memSet(waId, session) {
+  session.lastActive = Date.now();
+  memoryStore.set(waId, session);
 }
 
 // ─────────────────────────────────────────────
-// ENQUIRY FORM
+// PUBLIC API
 // ─────────────────────────────────────────────
 
-function getForm(waId) {
-  const session = sessions.get(waId);
-  return session ? { ...session.form } : emptyForm();
+async function getSession(waId) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    if (!row) return [];
+    try { return JSON.parse(row.messages) || []; } catch(e) { return []; }
+  }
+  var session = memGet(waId);
+  return session ? session.messages : [];
 }
 
-/**
- * Update one or more form fields.
- * @param {string} waId
- * @param {object} fields - partial form object e.g. { jobName: 'MV Najwa' }
- */
-function updateForm(waId, fields) {
-  const session = _getOrCreate(waId);
-  session.form = { ...session.form, ...fields };
+async function addMessage(waId, role, content) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    var messages = [];
+    var form = emptyForm();
+    var handedOff = false;
+    if (row) {
+      try { messages = JSON.parse(row.messages) || []; } catch(e) {}
+      try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
+      handedOff = row.handed_off || false;
+    }
+    messages.push({ role: role, content: content });
+    if (messages.length > 30) messages = messages.slice(-30);
+    await dbUpsert(waId, messages, form, handedOff);
+    return;
+  }
+  var session = memGet(waId) || { messages: [], form: emptyForm(), handedOff: false };
+  session.messages.push({ role: role, content: content });
+  if (session.messages.length > 30) session.messages = session.messages.slice(-30);
+  memSet(waId, session);
+}
+
+async function getForm(waId) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    if (!row) return emptyForm();
+    try { return JSON.parse(row.form) || emptyForm(); } catch(e) { return emptyForm(); }
+  }
+  var session = memGet(waId);
+  return session ? session.form : emptyForm();
+}
+
+async function updateForm(waId, fields) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    var messages = [];
+    var form = emptyForm();
+    var handedOff = false;
+    if (row) {
+      try { messages = JSON.parse(row.messages) || []; } catch(e) {}
+      try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
+      handedOff = row.handed_off || false;
+    }
+    Object.assign(form, fields);
+    form.formComplete = isFormComplete(form);
+    await dbUpsert(waId, messages, form, handedOff);
+    return;
+  }
+  var session = memGet(waId) || { messages: [], form: emptyForm(), handedOff: false };
+  Object.assign(session.form, fields);
   session.form.formComplete = isFormComplete(session.form);
-  _save(waId, session);
+  memSet(waId, session);
 }
 
-/**
- * Returns list of field names still missing from the form.
- */
-function getMissingFields(waId) {
-  const form = getForm(waId);
-  const missing = [];
+async function getMissingFields(waId) {
+  var form = await getForm(waId);
+  var missing = [];
   if (!form.prepPickupDate) missing.push('prepPickupDate');
   if (!form.shootingDate)   missing.push('shootingDate');
   if (!form.invoiceType)    missing.push('invoiceType');
@@ -119,85 +187,92 @@ function getMissingFields(waId) {
 }
 
 function isFormComplete(form) {
-  return !!(
-    form.prepPickupDate &&
-    form.shootingDate   &&
-    form.invoiceType    &&
-    form.invoiceDetails &&
-    form.jobName        &&
-    form.equipmentList
-  );
+  return !!(form.prepPickupDate && form.shootingDate && form.invoiceType &&
+            form.invoiceDetails && form.jobName && form.equipmentList);
 }
 
-/**
- * Format the completed form as a clean summary string.
- * Used in handoff notifications and quote generation.
- */
-function formatFormSummary(waId) {
-  const form = getForm(waId);
-  const inv = form.invoiceDetails || {};
+async function formatFormSummary(waId) {
+  var form = await getForm(waId);
+  var inv = form.invoiceDetails || {};
+  var missing = await getMissingFields(waId);
 
-  const invoiceBlock = form.invoiceType === 'company'
-    ? `Company: ${inv.companyName || '—'}
-   Reg No: ${inv.registrationNo || '—'}
-   TIN: ${inv.tinNumber || '—'}
-   SST No: ${inv.sstNumber || '—'}
-   Address: ${inv.address || '—'}
-   Email: ${inv.email || '—'}
-   Contact: ${inv.contactPerson || '—'}`
-    : `Name: ${inv.name || '—'}
-   IC No: ${inv.icNumber || '—'}
-   Address: ${inv.address || '—'}
-   Email: ${inv.email || '—'}`;
+  var invoiceBlock = form.invoiceType === 'company'
+    ? 'Company: ' + (inv.companyName || '-') + '\n' +
+      '   Reg No: ' + (inv.registrationNo || '-') + '\n' +
+      '   TIN: ' + (inv.tinNumber || '-') + '\n' +
+      '   SST No: ' + (inv.sstNumber || '-') + '\n' +
+      '   Address: ' + (inv.address || '-') + '\n' +
+      '   Email: ' + (inv.email || '-') + '\n' +
+      '   Contact: ' + (inv.contactPerson || '-')
+    : 'Name: ' + (inv.name || '-') + '\n' +
+      '   IC No: ' + (inv.icNumber || '-') + '\n' +
+      '   Address: ' + (inv.address || '-') + '\n' +
+      '   Email: ' + (inv.email || '-');
 
-  return `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 EQUIPMENT RENTAL ENQUIRY FORM
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📅 Prep/Pick-up Date : ${form.prepPickupDate || '—'}
-🎬 Shooting Date     : ${form.shootingDate || '—'}
-🎯 Job Name          : ${form.jobName || '—'}
-📦 Equipment List    :
-   ${form.equipmentList || '—'}
-🧾 Invoice Type      : ${form.invoiceType ? form.invoiceType.charAt(0).toUpperCase() + form.invoiceType.slice(1) : '—'}
-   ${invoiceBlock}
-✅ Form Complete     : ${form.formComplete ? 'Yes' : 'No — missing: ' + getMissingFields(waId).join(', ')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim();
+  return [
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    'EQUIPMENT RENTAL ENQUIRY FORM',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    'Prep/Pick-up Date : ' + (form.prepPickupDate || '-'),
+    'Shooting Date     : ' + (form.shootingDate || '-'),
+    'Job Name          : ' + (form.jobName || '-'),
+    'Equipment List    :\n   ' + (form.equipmentList || '-'),
+    'Invoice Type      : ' + (form.invoiceType ? form.invoiceType.charAt(0).toUpperCase() + form.invoiceType.slice(1) : '-'),
+    '   ' + invoiceBlock,
+    'Form Complete     : ' + (form.formComplete ? 'Yes' : 'No — missing: ' + missing.join(', ')),
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+  ].join('\n');
 }
 
-// ─────────────────────────────────────────────
-// HANDOFF
-// ─────────────────────────────────────────────
-
-function markHandedOff(waId) {
-  const session = _getOrCreate(waId);
+async function markHandedOff(waId) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    var messages = [];
+    var form = emptyForm();
+    if (row) {
+      try { messages = JSON.parse(row.messages) || []; } catch(e) {}
+      try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
+    }
+    await dbUpsert(waId, messages, form, true);
+    return;
+  }
+  var session = memGet(waId) || { messages: [], form: emptyForm(), handedOff: false };
   session.handedOff = true;
-  _save(waId, session);
+  memSet(waId, session);
 }
 
-function isHandedOff(waId) {
-  const session = sessions.get(waId);
+async function isHandedOff(waId) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    return row ? row.handed_off === true : false;
+  }
+  var session = memGet(waId);
   return session ? !!session.handedOff : false;
 }
 
-function resumeBot(waId) {
-  const session = sessions.get(waId);
-  if (session) {
-    session.handedOff = false;
-    _save(waId, session);
+async function resumeBot(waId) {
+  if (supabase) {
+    var row = await dbGet(waId);
+    if (!row) return;
+    var messages = [];
+    var form = emptyForm();
+    try { messages = JSON.parse(row.messages) || []; } catch(e) {}
+    try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
+    await dbUpsert(waId, messages, form, false);
+    return;
   }
+  var session = memGet(waId);
+  if (session) { session.handedOff = false; memSet(waId, session); }
 }
 
-// ─────────────────────────────────────────────
-// MISC
-// ─────────────────────────────────────────────
-
-function clearSession(waId) {
-  sessions.delete(waId);
+async function clearSession(waId) {
+  if (supabase) { await dbDelete(waId); return; }
+  memoryStore.delete(waId);
 }
 
 function getSessionCount() {
-  return sessions.size;
+  if (supabase) return -1; // Not tracked for Supabase
+  return memoryStore.size;
 }
 
 module.exports = {

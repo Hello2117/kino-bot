@@ -243,8 +243,17 @@ async function markHandedOff(waId) {
 
 async function isHandedOff(waId) {
   if (supabase) {
-    var row = await dbGet(waId);
-    return row ? row.handed_off === true : false;
+    try {
+      var result = await supabase
+        .from('kino_sessions')
+        .select('handed_off')
+        .eq('wa_id', waId)
+        .single();
+      if (result.error || !result.data) return false;
+      return result.data.handed_off === true;
+    } catch(e) {
+      return false;
+    }
   }
   var session = memGet(waId);
   return session ? !!session.handedOff : false;

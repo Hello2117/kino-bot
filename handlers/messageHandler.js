@@ -16,13 +16,13 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   if (!text || !text.trim()) return;
   var trimmedText = text.trim();
 
-  if (isHandedOff(waId)) {
+  if (await isHandedOff(waId)) {
     console.log('[KINO] ' + waId + ' is with human — bot silent');
     return;
   }
 
   var lower   = trimmedText.toLowerCase();
-  var history = getSession(waId);
+  var history = await getSession(waId);
   var greetingTriggers = ['hi', 'hello', 'hey', 'start', 'mula', 'hai', 'alo', 'helo'];
 
   if (history.length === 0 && greetingTriggers.some(function(g) { return lower === g; })) {

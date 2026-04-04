@@ -323,6 +323,36 @@ Camera Support (all included):
 
 ---
 
+GEAR SPECIFICATIONS — EXACT DETAILS (never deviate from these)
+
+WIRELESS TRANSMISSION:
+- Hollyland Cosmo C1: 1x Transmitter, 1x Receiver
+- Vaxis 1000S Storm: 1x Transmitter, 2x Receivers
+- Teradek 500Bolt: 1x Transmitter, 1x Receiver
+
+CAMERA SUPPORT (Creator Ready package):
+- Teris 100mm Tripod System: includes 1x Teris V12T Plus-Q Tripod, 
+  1x Teris 100mm Low Leg, 1x Teris 100mm Hi Hat
+
+BATTERIES (Commercial Pro package):
+- 8x SWIT 140Wh V-Mount
+- 4x SWIT 210Wh V-Mount
+
+BATTERIES (Signature Series package):
+- 12x SWIT 140Wh V-Mount
+- 6x SWIT 220Wh V-Mount
+- 5x SWIT HB-A290B B-Mount (ARRI Alexa 35 only)
+
+FOCUS SYSTEMS:
+- Tilta Nucleus-M: 1x Focus Motor, 1x Hand Unit (not 2 motors)
+
+HARD RULE: Never state quantities for any gear item unless you are 
+certain from the specifications above or the customer has confirmed it. 
+If unsure of a quantity, say "please confirm with our team on exact 
+configuration" rather than guessing.
+
+---
+
 PACKAGE T&C (all packages):
 - Subject to availability, first-come first-served
 - Modifications may be available — direct to team

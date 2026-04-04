@@ -2,14 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const { handleIncomingMessage } = require('./handlers/messageHandler');
 const { resumeBot, getSessionCount } = require('./utils/sessionStore');
+const { sendMessage, assignToTeam, notifyJeff } = require('./handlers/watiHandler');
+const { markHandedOff } = require('./utils/sessionStore');
+const { notifyHandoff } = require('./handlers/notificationHandler');
 
 const app = express();
 app.use(express.json());
 
-// Deduplication cache — prevents processing the same message twice
 const processed = new Set();
 
-// Health check
 app.get('/', (req, res) => {
   res.json({
     status:   'KINO is live',
@@ -19,124 +20,123 @@ app.get('/', (req, res) => {
   });
 });
 
-// WATI Webhook
-// Set in WATI Dashboard -> Settings -> Webhooks
-// URL: https://your-app.railway.app/webhook/wati
+function extractText(body) {
+  if (body.text && typeof body.text === 'string' && body.text.trim()) {
+    return body.text.trim();
+  }
+  if (body.contextInfo && body.contextInfo.quotedMessage) {
+    var quoted = body.contextInfo.quotedMessage;
+    if (quoted.conversation) return quoted.conversation.trim();
+    if (quoted.extendedTextMessage && quoted.extendedTextMessage.text) {
+      return quoted.extendedTextMessage.text.trim();
+    }
+  }
+  if (body.replyContextId && body.text) return body.text.trim();
+  if (body.message && body.message.text) return body.message.text.trim();
+  if (body.message && body.message.conversation) return body.message.conversation.trim();
+  if (body.message && body.message.extendedTextMessage) {
+    return body.message.extendedTextMessage.text.trim();
+  }
+  return null;
+}
+
 app.post('/webhook/wati', async (req, res) => {
   res.sendStatus(200);
 
   try {
-    const body = req.body;
-
-    // Log event type for debugging
+    var body = req.body;
     console.log('[WATI] eventType:', body.eventType, '| type:', body.type);
 
-    // Only process incoming customer messages — ignore all other events
-    // (read receipts, delivery status, sent messages etc.)
     if (body.eventType && body.eventType !== 'message') {
       console.log('[KINO] Ignoring event:', body.eventType);
       return;
     }
 
-    // Ignore outgoing messages sent by KINO
     if (body.owner === true || body.isOwner === true || body.fromMe === true) {
       console.log('[KINO] Ignoring own outgoing message');
       return;
     }
 
-    const waId = body.waId || body.senderWaId;
-    const name = body.senderName || body.name || 'Customer';
-    const type = body.type || (body.message && body.message.type);
-    const msgId = body.id || body.messageId || body.wamid;
+    var waId = body.waId || body.senderWaId;
+    var name = body.senderName || body.name || 'Customer';
+    var type = body.type || (body.message && body.message.type);
+    var msgId = body.id || body.messageId || body.wamid;
 
     if (!waId) return;
 
-    // Deduplicate — skip if we've seen this message ID before
     if (msgId) {
       if (processed.has(msgId)) {
         console.log('[KINO] Duplicate ignored:', msgId);
         return;
       }
       processed.add(msgId);
-      // Clean up old IDs after 1 hour to prevent memory leak
       setTimeout(function() { processed.delete(msgId); }, 3600000);
     }
 
-    // Handle text messages
+    // Text messages
     if (type === 'text') {
-      const text = body.text || (body.message && body.message.text);
-      if (!text) return;
+      var text = extractText(body);
+      if (!text) {
+        console.log('[KINO] Could not extract text — payload:', JSON.stringify(body).substring(0, 300));
+        return;
+      }
       console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '"');
       await handleIncomingMessage(waId, text, name);
       return;
     }
 
-    // Handle image messages
+    // Image messages
     if (type === 'image') {
       console.log('[WATI] Image payload:', JSON.stringify(body).substring(0, 600));
-
-      // WATI sends image URL in the "data" field
-      const imageUrl = body.data || null;
-
-      // Caption is in the "text" field for image messages
-      const caption = body.text || body.caption || '';
-
+      var imageUrl = body.data || null;
+      var caption = body.text || body.caption || '';
       console.log('[KINO] Image from ' + waId + ' | URL found:', !!imageUrl, '| caption:', caption);
       await handleIncomingMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
       return;
     }
 
-    // Handle document/file messages
+    // Document messages — auto handoff to Jeff
     if (type === 'document') {
-      const filename = (body.document && body.document.filename)
+      var filename = (body.document && body.document.filename)
         || body.fileName || body.filename || 'document';
       console.log('[KINO] Document from ' + waId + ':', filename);
 
-      // Documents are always equipment lists or briefs — hand off to Jeff
-      const docMessage = 'I have received your document (' + filename + '). '
+      var docReply = 'I have received your document (' + filename + '). '
         + 'I will pass this to Jeff from our team who will review it and get back to you with a detailed quote. Sit tight!';
 
-      await sendMessage(waId, docMessage);
-
-      // Notify Jeff directly
-      const { notifyJeff } = require('./handlers/watiHandler');
-      await notifyJeff(name, waId, '[Document received: ' + filename + ']');
-
-      // Mark conversation as handed off
-      const { markHandedOff } = require('./utils/sessionStore');
-      const { assignToTeam } = require('./handlers/watiHandler');
-      const { notifyHandoff } = require('./handlers/notificationHandler');
+      await sendMessage(waId, docReply);
       markHandedOff(waId);
+
       await Promise.all([
         assignToTeam(waId),
-        notifyHandoff(waId, name, '[Document: ' + filename + ']', docMessage),
+        notifyJeff(name, waId, '[Document received: ' + filename + ']'),
+        notifyHandoff(waId, name, '[Document: ' + filename + ']', docReply),
       ]);
       return;
     }
+
+    console.log('[KINO] Unsupported message type ignored:', type);
+
+  } catch (err) {
+    console.error('[KINO] Webhook error:', err.message);
+  }
 });
 
-// Admin: Resume bot after human handoff
-// POST /admin/resume-bot  Body: { "waId": "60123456789", "secret": "..." }
 app.post('/admin/resume-bot', (req, res) => {
-  const { waId, secret } = req.body;
-  if (secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
-  if (!waId) return res.status(400).json({ error: 'waId required' });
-  resumeBot(waId);
-  console.log('[KINO] Bot resumed for ' + waId);
-  res.json({ success: true, message: 'Bot resumed for ' + waId });
+  var body = req.body;
+  if (body.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  if (!body.waId) return res.status(400).json({ error: 'waId required' });
+  resumeBot(body.waId);
+  console.log('[KINO] Bot resumed for ' + body.waId);
+  res.json({ success: true });
 });
 
-// Admin: Stats
 app.get('/admin/stats', (req, res) => {
   if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
-  res.json({
-    activeSessions: getSessionCount(),
-    uptime:         Math.floor(process.uptime()) + 's',
-    timestamp:      new Date().toISOString(),
-  });
+  res.json({ activeSessions: getSessionCount(), uptime: Math.floor(process.uptime()) + 's', timestamp: new Date().toISOString() });
 });
 
-const PORT = process.env.PORT || 3000;
+var PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('\nKINO is live on port ' + PORT);
   console.log('WATI webhook : POST /webhook/wati');

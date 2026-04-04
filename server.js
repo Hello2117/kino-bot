@@ -7,24 +7,25 @@ const app = express();
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.json({
-    status:   'KINO is live 🎬',
-    service:  'TWENTYONESEVENTEEN WhatsApp Bot',
-    channel:  'Meta Cloud API via WATI',
-    sessions: getSessionCount(),
-    uptime:   Math.floor(process.uptime()) + 's',
-  });
+  res.json({ status: 'KINO is live 🎬', channel: 'WATI', sessions: getSessionCount(), uptime: Math.floor(process.uptime()) + 's' });
 });
 
 app.post('/webhook/wati', async (req, res) => {
   res.sendStatus(200);
   try {
     const body = req.body;
+
+    // Ignore outgoing messages (sent by KINO) — only process incoming customer messages
+    if (body.owner === true || body.isOwner === true) return;
+    if (body.eventType && body.eventType !== 'message') return;
+
     const waId = body.waId || body.senderWaId;
-    const text = body.text || body.message?.text;
+    const text = body.text || (body.message && body.message.text);
     const name = body.senderName || body.name || 'Customer';
-    const type = body.type || body.message?.type;
+    const type = body.type || (body.message && body.message.type);
+
     if (!waId || type !== 'text' || !text) return;
+
     await handleIncomingMessage(waId, text, name);
   } catch (err) {
     console.error('[KINO] Webhook error:', err.message);
@@ -46,8 +47,8 @@ app.get('/admin/stats', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`\n🎬 KINO is live on port ${PORT}`);
-  console.log(`📡 WATI webhook : POST /webhook/wati`);
-  console.log(`🔑 Admin        : POST /admin/resume-bot`);
-  console.log(`❤️  Health check : GET  /\n`);
+  console.log('\n🎬 KINO is live on port ' + PORT);
+  console.log('📡 WATI webhook : POST /webhook/wati');
+  console.log('🔑 Admin        : POST /admin/resume-bot');
+  console.log('❤️  Health check : GET  /\n');
 });

@@ -158,10 +158,27 @@ Budget Bracket Guide:
 
 DISCOUNT & PRICING RULES
 
-Multi-Day Discount:
-- 1 day to 4 weeks (up to 28 days): charged at 3-day rate
+BILLING & RENTAL DAY POLICY
+
+Customers are charged only for the days they actually use the equipment — 
+not for the prep/pickup day and not for the return day.
+
+Collection is allowed one day before the shoot — this day is FREE.
+Return is allowed one day after the shoot — this day is FREE.
+
+Example: A 3-day shoot (Mon, Tue, Wed) = charged 3 days.
+Customer collects Sunday (free) and returns Thursday (free).
+
+Multi-Day Discount (applied to chargeable shoot days):
+- 1 shoot day up to 4 weeks (28 days): charged at 3-day rate
 - 5 weeks and above (35+ days): charged at 2-day rate
-Always apply and explain this proactively.
+
+When explaining pricing always clarify:
+EN: "You are only charged for your actual shoot days. 
+     Pickup the day before and return the day after are both free of charge."
+BM: "You hanya dicaj untuk hari shoot sahaja. 
+     Hari ambil dan hari pulang tidak dikenakan bayaran."
+
 
 Volume Discount:
 - RM5,000 and above total: automatic 10% off. Apply without waiting for customer to ask.

@@ -1,6 +1,6 @@
 // handlers/messageHandler.js
 const { askKino }                            = require('./claudeHandler');
-const { sendMessage, assignToTeam }          = require('./watiHandler');
+const { sendMessage, assignToTeam, notifyJeff } = require('./watiHandler');
 const { notifyHandoff }                      = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
 const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
@@ -50,6 +50,16 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   var semanticResult = results[1];
   var reply            = kinoResult.reply;
   var handoffTriggered = kinoResult.handoffTriggered;
+
+if (handoffTriggered) {
+    console.log('[KINO] Handoff triggered for ' + waId);
+    markHandedOff(waId);
+    await Promise.all([
+      assignToTeam(waId),
+      notifyHandoff(waId, name, trimmedText, reply),
+      notifyJeff(name, waId, trimmedText),
+    ]);
+  }
 
   if (semanticResult) {
     var formUpdate = mapToFormUpdate(semanticResult);

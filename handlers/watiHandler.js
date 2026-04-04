@@ -60,4 +60,33 @@ async function sendTemplate(waId, templateName, parameters) {
   }
 }
 
-module.exports = { sendMessage, assignToTeam, sendTemplate };
+async function notifyJeff(customerName, customerWaId, message) {
+  try {
+    var jeffNumber = process.env.JEFF_WHATSAPP;
+    if (!jeffNumber) {
+      console.log('[WATI] JEFF_WHATSAPP not set — skipping Jeff notification');
+      return null;
+    }
+    var alertText = 'Hi Jeff, KINO has flagged a new enquiry for you.\n\n'
+      + 'Customer: ' + customerName + '\n'
+      + 'WA: +' + customerWaId + '\n\n'
+      + 'They sent a custom equipment list. Please follow up directly.\n\n'
+      + 'Last message: "' + message.substring(0, 200) + '"';
+
+    var res = await axios.post(
+      WATI_BASE_URL + '/api/v1/sendSessionMessage/' + jeffNumber,
+      'messageText=' + encodeURIComponent(alertText),
+      { headers: {
+        'Authorization': 'Bearer ' + WATI_API_KEY,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }}
+    );
+    console.log('[WATI] Jeff notified successfully');
+    return res.data;
+  } catch (err) {
+    console.error('[WATI] notifyJeff error:', err.response && err.response.data || err.message);
+    return null;
+  }
+}
+
+module.exports = { sendMessage, assignToTeam, sendTemplate, notifyJeff };

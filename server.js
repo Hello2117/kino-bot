@@ -137,6 +137,15 @@ app.get('/admin/stats', (req, res) => {
 });
 
 var PORT = process.env.PORT || 3000;
+
+app.get('/admin/unblock/:waId', async (req, res) => {
+  if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  const { createClient } = require('@supabase/supabase-js');
+  const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+  await sb.from('kino_sessions').delete().eq('wa_id', req.params.waId);
+  res.json({ success: true, message: req.params.waId + ' unblocked' });
+});
+
 app.listen(PORT, function() {
   console.log('\nKINO is live on port ' + PORT);
   console.log('WATI webhook : POST /webhook/wati');

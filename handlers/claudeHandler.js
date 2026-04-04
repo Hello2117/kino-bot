@@ -1,20 +1,15 @@
-// handlers/claudeHandler.js
-// Sends conversation to Claude API with KINO system prompt.
-// Loads system prompt from file on startup — swap file contents without redeploying.
-
 const Anthropic = require('@anthropic-ai/sdk');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Load KINO system prompt once at startup
 const SYSTEM_PROMPT = fs.readFileSync(
   path.join(__dirname, '../prompts/kino_system.txt'),
   'utf8'
 );
 
-// Detect handoff trigger in KINO's response
 function detectsHandoffTrigger(text) {
   const triggers = [
     'loop in our team',
@@ -24,39 +19,73 @@ function detectsHandoffTrigger(text) {
     'let me flag that to our team',
   ];
   const lower = text.toLowerCase();
-  return triggers.some(t => lower.includes(t));
+  return triggers.some(function(t) { return lower.includes(t); });
 }
 
-/**
- * Send a message to Claude and get KINO's response.
- *
- * @param {Array<{role: string, content: string}>} conversationHistory
- * @param {string} newUserMessage
- * @returns {Promise<{reply: string, handoffTriggered: boolean}>}
- */
-async function askKino(conversationHistory, newUserMessage) {
-  // Append the new user message to history for this call
-  const messages = [
-    ...conversationHistory,
-    { role: 'user', content: newUserMessage },
-  ];
+async function fetchImageAsBase64(imageUrl) {
+  try {
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const base64 = Buffer.from(response.data).toString('base64');
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    return { base64, contentType };
+  } catch (err) {
+    console.error('[Claude] Image fetch error:', err.message);
+    return null;
+  }
+}
+
+async function askKino(conversationHistory, newUserMessage, imageUrl) {
+  var userContent;
+
+  if (imageUrl) {
+    // Fetch image and build vision message
+    var imageData = await fetchImageAsBase64(imageUrl);
+    if (imageData) {
+      userContent = [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: imageData.contentType,
+            data: imageData.base64,
+          },
+        },
+        {
+          type: 'text',
+          text: newUserMessage || 'The customer sent this image. Describe what you see and respond helpfully in the context of cinema equipment rental.',
+        },
+      ];
+    } else {
+      // Image fetch failed — treat as text
+      userContent = newUserMessage + ' [Note: customer sent an image but it could not be loaded]';
+    }
+  } else {
+    userContent = newUserMessage;
+  }
+
+  var messages = conversationHistory.concat([
+    { role: 'user', content: userContent }
+  ]);
 
   try {
-    const response = await client.messages.create({
+    var response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages,
+      messages: messages,
     });
 
-    const reply = response.content[0]?.text || "Sorry, I didn't catch that. Could you repeat?";
-    const handoffTriggered = detectsHandoffTrigger(reply);
+    var reply = response.content[0] && response.content[0].text
+      ? response.content[0].text
+      : "Sorry, I didn't catch that. Could you repeat?";
 
-    return { reply, handoffTriggered };
+    var handoffTriggered = detectsHandoffTrigger(reply);
+    return { reply: reply, handoffTriggered: handoffTriggered };
+
   } catch (err) {
     console.error('[Claude] askKino error:', err.message);
     return {
-      reply: "Sorry, I'm having a moment — please try again shortly, or message us directly! 🙏",
+      reply: "Sorry, I'm having a moment — please try again shortly, or message us directly!",
       handoffTriggered: false,
     };
   }

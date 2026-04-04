@@ -16,36 +16,59 @@ app.post('/webhook/wati', async (req, res) => {
   res.sendStatus(200);
   try {
     const body = req.body;
-    console.log('[WATI] Payload keys:', Object.keys(body).join(', '));
-    console.log('[WATI] Full payload:', JSON.stringify(body).substring(0, 300));
-// Only process incoming customer messages
+
+    // Log payload type for debugging
+    console.log('[WATI] eventType:', body.eventType);
+
+    // Only process incoming customer messages
     if (!body.eventType || body.eventType !== 'message') {
       console.log('[KINO] Ignoring event type:', body.eventType);
       return;
     }
 
     const waId = body.waId || body.senderWaId;
-    const text = body.text || (body.message && body.message.text);
     const name = body.senderName || body.name || 'Customer';
     const type = body.type || (body.message && body.message.type);
-    const msgId = body.id || body.messageId || body.wamid || (body.message && body.message.id);
+    const msgId = body.id || body.messageId;
 
-    if (!waId || type !== 'text' || !text) return;
+    if (!waId) return;
 
-    // Deduplicate — ignore if same message ID seen before
+    // Deduplicate
     if (msgId && processed.has(msgId)) {
-      console.log('[KINO] Duplicate message ignored:', msgId);
+      console.log('[KINO] Duplicate ignored:', msgId);
       return;
     }
     if (msgId) processed.add(msgId);
 
-    // Only process if not our own message
-    if (body.isOwner || body.owner || body.fromMe) {
-      console.log('[KINO] Ignoring own outgoing message');
+    // Handle text messages
+    if (type === 'text') {
+      const text = body.text || (body.message && body.message.text);
+      if (!text) return;
+      await handleIncomingMessage(waId, text, name);
       return;
     }
 
-    await handleIncomingMessage(waId, text, name);
+    // Handle image messages
+    if (type === 'image') {
+      const imageUrl = body.image && body.image.link
+        || body.message && body.message.image && body.message.image.link
+        || null;
+
+      const caption = body.image && body.image.caption
+        || body.message && body.message.image && body.message.image.caption
+        || '';
+
+      if (imageUrl) {
+        await handleIncomingMessage(waId, caption || '[Image received]', name, imageUrl);
+      } else {
+        await handleIncomingMessage(waId, '[Customer sent an image]', name);
+      }
+      return;
+    }
+
+    // All other types — acknowledge but don't process
+    console.log('[KINO] Unsupported message type:', type);
+
   } catch (err) {
     console.error('[KINO] Webhook error:', err.message);
   }

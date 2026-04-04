@@ -11,7 +11,7 @@ const {
 
 const GREETING = 'Hi! 👋 I\'m *KINO*, the rental assistant for *TWENTYONESEVENTEEN* 🎬\n\nI can help you with:\n• Gear recommendations for your shoot\n• Package info & pricing\n• Availability checks\n• Getting you a quote\n\nWhat are you looking for today? / Apa yang you nak hari ni?';
 
-async function handleIncomingMessage(waId, text, name) {
+async function handleIncomingMessage(waId, text, name, imageUrl) {
   if (name === undefined) name = 'Customer';
   if (!text || !text.trim()) return;
   var trimmedText = text.trim();
@@ -42,7 +42,7 @@ async function handleIncomingMessage(waId, text, name) {
   console.log('[KINO] ' + waId + ': "' + trimmedText.substring(0, 80) + '..." | missing: [' + (missing.join(', ') || 'none') + ']');
 
   var results = await Promise.all([
-    askKino(history, trimmedText + formContext),
+    askKino(history, trimmedText + formContext, imageUrl),
     extractFormFields(trimmedText, history),
   ]);
 

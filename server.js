@@ -18,6 +18,11 @@ app.post('/webhook/wati', async (req, res) => {
     const body = req.body;
     console.log('[WATI] Payload keys:', Object.keys(body).join(', '));
     console.log('[WATI] Full payload:', JSON.stringify(body).substring(0, 300));
+// Only process incoming customer messages
+    if (!body.eventType || body.eventType !== 'message') {
+      console.log('[KINO] Ignoring event type:', body.eventType);
+      return;
+    }
 
     const waId = body.waId || body.senderWaId;
     const text = body.text || (body.message && body.message.text);

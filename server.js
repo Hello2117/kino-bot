@@ -73,23 +73,16 @@ app.post('/webhook/wati', async (req, res) => {
 
     // Handle image messages
     if (type === 'image') {
-      // Log full image payload so we can identify the correct URL field
       console.log('[WATI] Image payload:', JSON.stringify(body).substring(0, 600));
 
-      // Try all known WATI image URL field locations
-      const imageUrl = (body.image && (body.image.link || body.image.url || body.image.mediaUrl))
-        || (body.message && body.message.image && (body.message.image.link || body.message.image.url))
-        || body.mediaUrl
-        || body.fileUrl
-        || null;
+      // WATI sends image URL in the "data" field
+      const imageUrl = body.data || null;
 
-      const caption = (body.image && body.image.caption)
-        || (body.message && body.message.image && body.message.image.caption)
-        || body.caption
-        || '';
+      // Caption is in the "text" field for image messages
+      const caption = body.text || body.caption || '';
 
       console.log('[KINO] Image from ' + waId + ' | URL found:', !!imageUrl, '| caption:', caption);
-      await handleIncomingMessage(waId, caption || '[Image]', name, imageUrl);
+      await handleIncomingMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
       return;
     }
 

@@ -24,10 +24,15 @@ function detectsHandoffTrigger(text) {
 
 async function fetchImageAsBase64(imageUrl) {
   try {
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'Authorization': 'Bearer ' + process.env.WATI_API_KEY,
+      },
+    });
     const base64 = Buffer.from(response.data).toString('base64');
     const contentType = response.headers['content-type'] || 'image/jpeg';
-    return { base64, contentType };
+    return { base64: base64, contentType: contentType };
   } catch (err) {
     console.error('[Claude] Image fetch error:', err.message);
     return null;

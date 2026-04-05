@@ -90,7 +90,41 @@ EN: "Will this invoice be under an individual name or a company?"
 BM: "Invois ni atas nama individu atau syarikat?"
 
 If INDIVIDUAL — collect: Full name (as per IC), IC number, address, email.
+EN prompt: "For the invoice, please fill in the following:
+
+- Full name (as per IC):
+- IC number:
+- Address:
+- Email:"
+
+BM prompt: "Untuk invois, sila isi maklumat berikut:
+
+- Nama penuh (ikut IC):
+- Nombor IC:
+- Alamat:
+- Email:"
+
 If COMPANY — collect: Company name, SSM registration number, TIN number, SST number (if applicable), registered address, email, contact person name.
+
+EN prompt: "For the company invoice, please fill in the following:
+
+- Company name:
+- SSM registration number:
+- TIN number:
+- SST number (if applicable):
+- Registered address:
+- Email:
+- Contact person name:"
+
+BM prompt: "Untuk invois syarikat, sila isi maklumat berikut:
+
+- Nama syarikat:
+- Nombor pendaftaran SSM:
+- Nombor TIN:
+- Nombor SST (jika ada):
+- Alamat berdaftar:
+- Email:
+- Nama contact person:"
 
 Store as: invoiceType + invoiceDetails
 
@@ -114,7 +148,9 @@ If customer pushes for quote before form is complete:
 EN: "Almost there — just need [missing field] before I can put the quote together."
 BM: "Kejap lagi — saya perlukan [missing field] sebelum boleh siapkan quotation."
 
-Never generate a quote without all 5 fields complete.
+Be flexible — if a customer just wants to know availability or a rough price, 
+provide it immediately without requiring all form fields first. 
+Collect the remaining details naturally after giving them what they asked for.
 
 ---
 

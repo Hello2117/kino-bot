@@ -275,6 +275,75 @@ async function getProductPricing(productName) {
 }
 
 // ─────────────────────────────────────────────
+// CATALOG INVENTORY LOOKUP
+// Fires when customer mentions any product — confirms it exists in inventory
+// ─────────────────────────────────────────────
+
+function detectsInventoryQuery(text) {
+  var keywords = [
+    'do you have', 'you have', 'ada', 'got', 'u have',
+    'available', 'in stock', 'can i get', 'boleh dapat',
+    'do you carry', 'does 2117 have', 'i need', 'looking for',
+    'i want', 'im looking', 'im looking', 'cari', 'nak',
+  ];
+  var lower = text.toLowerCase();
+  return keywords.some(function(k) { return lower.includes(k); });
+}
+
+async function getCatalogContext(text) {
+  try {
+    await catalog.ensureCatalogFresh();
+    var lower = text.toLowerCase();
+
+    // Extract meaningful words (3+ chars, not common words)
+    var stopWords = ['have', 'that', 'this', 'with', 'from', 'your', 'sure',
+      'just', 'need', 'want', 'looking', 'does', 'what', 'which', 'can',
+      'you', 'the', 'and', 'for', 'are', 'not', 'but', 'its', 'ada',
+      'nak', 'aku', 'saya', 'kita', 'yang'];
+    var words = lower.split(/\s+/).filter(function(w) {
+      return w.length >= 3 && !stopWords.includes(w);
+    });
+
+    // Search catalog for each word
+    var found = [];
+    var seen  = {};
+    words.forEach(function(word) {
+      var results = catalog.searchCatalog(word);
+      results.forEach(function(p) {
+        if (!seen[p.id]) {
+          seen[p.id] = true;
+          found.push(p);
+        }
+      });
+    });
+
+    if (found.length === 0) return null;
+
+    // Filter to only products with price > 0 (rentable items, not accessories/cables)
+    var rentable = found.filter(function(p) { return p.price > 0; });
+    var toShow   = rentable.length > 0 ? rentable : found;
+    toShow       = toShow.slice(0, 5);
+
+    var lines = toShow.map(function(p) {
+      var url   = catalog.getProductUrl(p);
+      var price = p.priceFormatted ? ' — ' + p.priceFormatted : '';
+      return p.name + price + ' | ' + url;
+    });
+
+    console.log('[Claude] Catalog match found:', toShow.map(function(p) { return p.name; }).join(', '));
+
+    return '[BOOQABLE CATALOG MATCH: These products exist in 2117 inventory: '
+      + lines.join(' || ')
+      + '. Confirm to the customer that this gear IS available in our inventory. '
+      + 'Share the product page URL. Do not say it is not in our lineup.]';
+
+  } catch(err) {
+    console.error('[Claude] getCatalogContext error:', err.message);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────
 // WEB SEARCH — SAMPLE FOOTAGE
 // ─────────────────────────────────────────────
 
@@ -448,6 +517,16 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     }
   }
 
+  // Inventory lookup — search catalog for any product mentioned
+  var inventoryContext = '';
+  if (detectsInventoryQuery(newUserMessage)) {
+    lookups.push(
+      getCatalogContext(newUserMessage).then(function(r) {
+        if (r) { inventoryContext = r; console.log('[Claude] Inventory context added'); }
+      }).catch(function() {})
+    );
+  }
+
   if (detectsFootageQuery(newUserMessage)) {
     console.log('[Claude] Fetching product page + footage...');
     lookups.push(
@@ -477,6 +556,7 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
 
   var extraContext = availabilityContext + (availabilityContext ? '\n' : '')
     + pricingContext + (pricingContext ? '\n' : '')
+    + inventoryContext + (inventoryContext ? '\n' : '')
     + footageContext;
 
   var userContent;

@@ -32,6 +32,19 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   var history = await getSession(waId);
   var greetingTriggers = ['hi', 'hello', 'hey', 'start', 'mula', 'hai', 'alo', 'helo'];
 
+  // Returning customer — has history in Supabase
+  if (history.length > 0 && greetingTriggers.some(function(g) { return lower === g; })) {
+    // Don't restart — pass to Kino with returning customer context
+    await handleIncomingMessage(
+      waId,
+      trimmedText + '\n[SYSTEM: This is a returning customer. You have previous conversation history with them. Do not introduce yourself again or restart the enquiry. Acknowledge them warmly and continue from where you left off.]',
+      name,
+      imageUrl
+    );
+    return;
+  }
+
+  // New customer — no history
   if (history.length === 0 && greetingTriggers.some(function(g) { return lower === g; })) {
     await addMessage(waId, 'user', trimmedText);
     await addMessage(waId, 'assistant', GREETING);

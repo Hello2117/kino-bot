@@ -72,35 +72,28 @@ function getBooqableClient() {
   if (!process.env.BOOQABLE_API_KEY || !process.env.BOOQABLE_BASE_URL) return null;
   return axios.create({
     baseURL: process.env.BOOQABLE_BASE_URL,
+    timeout: 12000,
     params:  { api_key: process.env.BOOQABLE_API_KEY },
-    timeout: 12000, // 6 second timeout — never block Kino's reply
-    headers: {
-      
-      'Content-Type':  'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
   });
 }
 
 // ─────────────────────────────────────────────
-// GEAR KEYWORDS
+// GEAR KEYWORDS + SEARCH MAP
 // ─────────────────────────────────────────────
 
-// Exact Booqable product name fragments — matched against customer messages
-// Ordered from most specific to least specific to avoid false matches
 var GEAR_KEYWORDS = [
-  // Cameras — exact Booqable names
   'arri alexa 35', 'alexa 35',
   'arri alexa mini lf', 'alexa mini lf',
   'arri alexa mini', 'alexa mini',
   'sony venice 2 8k', 'venice 2',
-  'sony venice 6k', 'venice 6k', 'venice 1', 'venice 6',
+  'sony venice 6k', 'venice 6k', 'venice 6', 'venice 1',
   'venice rialto', 'rialto',
   'red v-raptor', 'v-raptor', 'raptor',
   'sony burano', 'burano',
   'sony fx3', 'fx3',
   'sony fx6', 'fx6',
   'red komodo', 'komodo',
-  // Lenses
   'signature prime', 'arri signature',
   'atlas orion', 'atlas mercury',
   'zeiss super speed', 'super speed',
@@ -108,39 +101,33 @@ var GEAR_KEYWORDS = [
   'sigma cine', 'sigma ff',
   'dzofilm arles', 'arles',
   'dzofilm vespid', 'vespid',
-  'dzofilm pictor', 'pictor',
-  'dzofilm catta', 'catta',
   'blazar remus', 'remus',
-  'atlas anamorphic',
   'laowa', 'aivascope', 'dulens',
   'leica-r', 'olympus zuiko', 'canon nfd', 'zero optik',
-  'lomo super speed',
-  // Support & accessories
   'hollyland', 'teradek', 'vaxis storm',
   'sachtler', 'tilta', 'nucleus-m',
-  'smallhd', 'atomos', 'swit',
-  'fxlion', 'richard gale', 'clavius',
+  'smallhd', 'atomos', 'swit', 'fxlion',
 ];
 
-// Map customer terms to exact Booqable search queries
 var GEAR_SEARCH_MAP = {
-  'alexa 35':      'Arri Alexa 35',
-  'arri alexa 35': 'Arri Alexa 35',
-  'alexa mini lf': 'Arri Alexa Mini LF',
-  'arri alexa mini lf': 'Arri Alexa Mini LF',
-  'alexa mini':    'ARRI ALEXA Mini',
-  'venice 2':      'Sony Venice 2 8K',
-  'venice 6k':     'Sony Venice 6K',
-  'venice 6':      'Sony Venice 6K',
-  'venice 1':      'Sony Venice 6K',
-  'rialto':        'Sony Venice 2 8K Cinema Camera with Rialto',
-  'venice rialto': 'Sony Venice 2 8K Cinema Camera with Rialto',
-  'raptor':        'RED V-Raptor',
-  'v-raptor':      'RED V-Raptor',
-  'burano':        'Sony Burano',
-  'fx3':           'Sony FX3',
-  'fx6':           'Sony FX6',
-  'komodo':        'RED Komodo',
+  'alexa 35':          'Arri Alexa 35',
+  'arri alexa 35':     'Arri Alexa 35',
+  'alexa mini lf':     'Arri Alexa Mini LF',
+  'arri alexa mini lf':'Arri Alexa Mini LF',
+  'alexa mini':        'ARRI ALEXA Mini',
+  'venice 2':          'Sony Venice 2 8K',
+  'sony venice 2 8k':  'Sony Venice 2 8K',
+  'venice 6k':         'Sony Venice 6K',
+  'venice 6':          'Sony Venice 6K',
+  'venice 1':          'Sony Venice 6K',
+  'rialto':            'Sony Venice 2 8K Cinema Camera with Rialto',
+  'venice rialto':     'Sony Venice 2 8K Cinema Camera with Rialto',
+  'raptor':            'RED V-Raptor',
+  'v-raptor':          'RED V-Raptor',
+  'burano':            'Sony Burano',
+  'fx3':               'Sony FX3',
+  'fx6':               'Sony FX6',
+  'komodo':            'RED Komodo',
 };
 
 // ─────────────────────────────────────────────
@@ -150,8 +137,7 @@ var GEAR_SEARCH_MAP = {
 function extractSimpleDate(text) {
   var months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
   var year   = new Date().getFullYear();
-
-  var match = text.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
+  var match  = text.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
   if (match) {
     var m = months[match[2].toLowerCase().substring(0, 3)];
     return year + '-' + String(m).padStart(2,'0') + '-' + String(match[1]).padStart(2,'0');
@@ -170,219 +156,147 @@ function extractSimpleDate(text) {
 }
 
 // ─────────────────────────────────────────────
-// BOOQABLE AVAILABILITY — with 5s timeout wrapper
+// BOOQABLE AVAILABILITY
 // ─────────────────────────────────────────────
 
 function detectsAvailabilityQuery(text) {
-  var keywords = [
-    'available', 'availability', 'ada tak', 'ada ke',
-    'boleh dapat', 'still free', 'book', 'reserve', 'tempah',
-    'is there', 'do you have', 'in stock', 'free on',
-  ];
+  var keywords = ['available', 'availability', 'ada tak', 'ada ke', 'boleh dapat',
+    'still free', 'book', 'reserve', 'tempah', 'is there', 'do you have', 'in stock', 'free on'];
   return keywords.some(function(k) { return text.toLowerCase().includes(k); });
 }
 
 async function _fetchAvailability(text, fromDate) {
   var booqable = getBooqableClient();
   if (!booqable) return '';
-
-  var lower      = text.toLowerCase();
+  var lower       = text.toLowerCase();
   var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
   if (!gearMention) return '';
-
-  // Use exact search term from map if available
-  var searchTerm = GEAR_SEARCH_MAP[gearMention] || gearMention;
-  console.log('[Claude] Booqable search term:', searchTerm);
-
-  var searchRes = await booqable.get('/product_groups', {
-    params: { q: searchTerm, per: 5 },
-  });
-
-  var products = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
-  if (products.length === 0) {
-    console.log('[Claude] No Booqable products found for:', searchTerm);
-    return '';
-  }
-
-  var availLines = [];
+  var searchTerm  = GEAR_SEARCH_MAP[gearMention] || gearMention;
+  console.log('[Claude] Booqable availability search:', searchTerm);
+  var searchRes = await booqable.get('/product_groups', { params: { q: searchTerm, per: 3 } });
+  var products  = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
+  if (products.length === 0) return '';
+  var lines = [];
   for (var i = 0; i < products.length; i++) {
-    var product = products[i];
-    try {
-      // Get products array from product group (contains individual product IDs)
-      var productId = product.products && product.products[0] && product.products[0].id;
-      if (!productId) {
-        // Fetch full product group to get nested products
-        var pgRes = await booqable.get('/product_groups/' + product.id);
-        var pg    = pgRes.data && pgRes.data.product_group;
-        productId = pg && pg.products && pg.products[0] && pg.products[0].id;
-      }
-      if (!productId) {
-        availLines.push(product.name + ': availability unknown');
-        continue;
-      }
-      // Use correct Booqable v1 availability endpoint
-      var availRes = await booqable.get('/products/' + productId + '/availability', {
-        params: { from: fromDate, till: fromDate, interval: 'day' },
-      });
-      // Response is keyed by date string — find the entry for our date
-      var availData = availRes.data;
-      var dateKey   = Object.keys(availData)[0]; // get first (and likely only) date entry
-      var entry     = availData[dateKey];
-      var avail     = entry ? entry.available : 0;
-      var total     = entry ? entry.total     : 0;
-      availLines.push(
-        product.name + ': ' +
-        (avail > 0
-          ? 'AVAILABLE (' + avail + ' of ' + total + ' unit(s) free)'
-          : 'NOT AVAILABLE — fully booked on this date')
-      );
-    } catch(e) {
-      console.warn('[Claude] availability check error for', product.name, ':', e.message);
-      availLines.push(product.name + ': availability unknown');
+    var product   = products[i];
+    var productId = product.products && product.products[0] && product.products[0].id;
+    if (!productId) {
+      var pgRes = await booqable.get('/product_groups/' + product.id);
+      var pg    = pgRes.data && pgRes.data.product_group;
+      productId = pg && pg.products && pg.products[0] && pg.products[0].id;
     }
+    if (!productId) { lines.push(product.name + ': availability unknown'); continue; }
+    var availRes  = await booqable.get('/products/' + productId + '/availability', {
+      params: { from: fromDate, till: fromDate, interval: 'day' },
+    });
+    var availData = availRes.data || {};
+    var dateKey   = Object.keys(availData)[0];
+    var entry     = dateKey && availData[dateKey];
+    var avail     = entry ? (entry.available || 0) : 0;
+    var total     = entry ? (entry.total || 0) : 0;
+    lines.push(product.name + ': ' + (avail > 0
+      ? 'AVAILABLE (' + avail + ' of ' + total + ' unit(s) free)'
+      : 'NOT AVAILABLE — fully booked on this date'));
   }
-
-  if (availLines.length === 0) return '';
-
-  return '\n[BOOQABLE LIVE AVAILABILITY for ' + fromDate + ': '
-    + availLines.join(' | ')
-    + '. Use this data to answer the customer accurately. Do not guess.]';
+  if (lines.length === 0) return '';
+  return '[BOOQABLE LIVE AVAILABILITY for ' + fromDate + ': ' + lines.join(' | ')
+    + '. Use this data to answer accurately. Do not guess.]';
 }
 
-// 5 second timeout wrapper — Booqable slow response never blocks Kino reply
 async function getAvailabilityContext(text, fromDate) {
-  try {
-    var result = await Promise.race([
-      _fetchAvailability(text, fromDate),
-      new Promise(function(resolve) {
-        setTimeout(function() {
-          console.warn('[Claude] Booqable availability timed out — continuing without it');
-          resolve('');
-        }, 10000);
-      }),
-    ]);
-    return result || '';
-  } catch(e) {
-    console.error('[Claude] getAvailabilityContext error:', e.message);
-    return '';
-  }
+  return Promise.race([
+    _fetchAvailability(text, fromDate).catch(function(e) {
+      console.error('[Claude] availability error:', e.message); return '';
+    }),
+    new Promise(function(resolve) {
+      setTimeout(function() { console.warn('[Claude] Availability timed out'); resolve(''); }, 10000);
+    }),
+  ]);
 }
 
 // ─────────────────────────────────────────────
-// BOOQABLE INDIVIDUAL PRICING — with 5s timeout
+// BOOQABLE PRICING
 // ─────────────────────────────────────────────
 
 function detectsPricingQuery(text) {
-  var keywords = [
-    'how much', 'berapa', 'price', 'harga', 'rate', 'kadar',
-    'cost', 'quote', 'quotation', 'sewa berapa', 'berapa sewa',
-  ];
+  var keywords = ['how much', 'berapa', 'price', 'harga', 'rate', 'kadar',
+    'cost', 'quote', 'quotation', 'sewa berapa', 'berapa sewa'];
   return keywords.some(function(k) { return text.toLowerCase().includes(k); });
 }
 
 async function _fetchPricing(productName) {
-  var booqable = getBooqableClient();
+  var booqable  = getBooqableClient();
   if (!booqable) return null;
-
   var searchTerm = GEAR_SEARCH_MAP[productName] || productName;
-  var searchRes = await booqable.get('/product_groups', {
-    params: { q: searchTerm, per: 5 },
-  });
-
-  var products = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
+  var searchRes  = await booqable.get('/product_groups', { params: { q: searchTerm, per: 5 } });
+  var products   = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
   if (products.length === 0) return null;
-
-  var lines = [];
-  products.forEach(function(p) {
-    var pricePerDay = p.base_price_in_cents
+  var lines = products.map(function(p) {
+    var price = p.base_price_in_cents
       ? 'RM' + (p.base_price_in_cents / 100).toFixed(2) + '/day'
       : 'price on request';
-    lines.push(p.name + ': ' + pricePerDay);
+    return p.name + ': ' + price;
   });
-
-  return '\n[BOOQABLE INDIVIDUAL PRICING: ' + lines.join(' | ')
-    + '. Use these exact prices when building a custom quote. '
-    + 'Apply multi-day discount, 10% volume discount if total reaches RM5,000, and 6% SST.]';
+  return '[BOOQABLE INDIVIDUAL PRICING: ' + lines.join(' | ')
+    + '. Apply multi-day discount, 10% volume discount if total reaches RM5000, and 6% SST.]';
 }
 
 async function getProductPricing(productName) {
-  try {
-    var result = await Promise.race([
-      _fetchPricing(productName),
-      new Promise(function(resolve) {
-        setTimeout(function() {
-          console.warn('[Claude] Booqable pricing timed out — continuing without it');
-          resolve(null);
-        }, 10000);
-      }),
-    ]);
-    return result || null;
-  } catch(e) {
-    console.error('[Claude] getProductPricing error:', e.message);
-    return null;
-  }
+  return Promise.race([
+    _fetchPricing(productName).catch(function(e) {
+      console.error('[Claude] pricing error:', e.message); return null;
+    }),
+    new Promise(function(resolve) {
+      setTimeout(function() { console.warn('[Claude] Pricing timed out'); resolve(null); }, 10000);
+    }),
+  ]);
 }
 
 // ─────────────────────────────────────────────
-// WEB SEARCH FOR SAMPLE FOOTAGE
-// Uses Anthropic web search tool to find footage links
+// WEB SEARCH — SAMPLE FOOTAGE
 // ─────────────────────────────────────────────
 
 function detectsFootageQuery(text) {
-  var keywords = [
-    'sample', 'footage', 'example', 'demo', 'reel', 'showreel',
-    'how does it look', 'what does it look like', 'see the',
-    'video of', 'photo of', 'image of', 'contoh', 'sample video',
-    'boleh tengok', 'nak tengok', 'show me', 'can i see',
+  var keywords = ['sample', 'footage', 'example', 'demo', 'reel', 'showreel',
+    'how does it look', 'boleh tengok', 'nak tengok', 'show me', 'can i see',
     'instagram', 'youtube', 'vimeo', 'reference', 'test footage',
-    'color science', 'dynamic range', 'low light', 'skin tone',
-  ];
-  var lower = text.toLowerCase();
-  return keywords.some(function(k) { return lower.includes(k); });
+    'color science', 'dynamic range', 'low light', 'skin tone', 'contoh'];
+  return keywords.some(function(k) { return text.toLowerCase().includes(k); });
 }
 
 async function searchSampleFootage(customerMessage) {
   try {
-    // Find which gear they are asking about
-    var lower      = customerMessage.toLowerCase();
+    var lower       = customerMessage.toLowerCase();
     var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
-    var searchTerm  = gearMention
-      ? (GEAR_SEARCH_MAP[gearMention] || gearMention) + ' sample footage cinema'
+    var gearName    = gearMention ? (GEAR_SEARCH_MAP[gearMention] || gearMention) : '';
+    var searchQuery = gearName
+      ? gearName + ' sample footage cinema reel'
       : '2117 rentals Malaysia cinema equipment sample footage';
 
-    console.log('[Claude] Searching footage for:', searchTerm);
+    console.log('[Claude] Footage search:', searchQuery);
 
     var response = await client.messages.create({
       model:      'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{
+      max_tokens: 600,
+      tools:      [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages:   [{
         role:    'user',
-        content: 'Find 3 sample footage or showreel links for: ' + searchTerm
-          + '. Focus on Vimeo, YouTube, or manufacturer sites. '
-          + 'Return only a short list of links with one-line descriptions. '
-          + 'No commentary, just the links and descriptions.',
+        content: 'Find 3 good sample footage or showreel links for: ' + searchQuery
+          + '. Focus on Vimeo, YouTube, or manufacturer sites. Return only a short list of links with one-line descriptions. No preamble.',
       }],
     });
 
-    // Extract text from response
     var resultText = '';
     if (response.content) {
       response.content.forEach(function(block) {
-        if (block.type === 'text' && block.text) {
-          resultText += block.text;
-        }
+        if (block.type === 'text' && block.text) resultText += block.text;
       });
     }
 
     if (!resultText || resultText.trim().length < 10) return null;
 
-    return '
-[WEB SEARCH FOOTAGE RESULTS for  + searchTerm + :
-'
-      + resultText.trim()
-      + '
-Share these links with the customer naturally, mentioning what each link shows.]';
+    return '[FOOTAGE SEARCH RESULTS: ' + resultText.trim()
+      + ' Share these links naturally with the customer.]';
 
   } catch (err) {
     console.error('[Claude] searchSampleFootage error:', err.message);
@@ -396,26 +310,23 @@ Share these links with the customer naturally, mentioning what each link shows.]
 
 async function askKino(conversationHistory, newUserMessage, imageUrl) {
 
-  // 1 — Inject current Malaysia date
   var dateString     = getMalaysiaDateString();
   var systemWithDate = SYSTEM_PROMPT
     + '\n\nCURRENT DATE: ' + dateString
-    + ' (Malaysia time). Always use this when answering questions about dates, '
-    + 'scheduling, availability, and day-of-week calculations.';
+    + ' (Malaysia time). Use this for all date, scheduling and availability questions.';
 
-  // 2 — Run Booqable checks in parallel with a shared 5s timeout
+  // Run all lookups in parallel
   var availabilityContext = '';
   var pricingContext      = '';
-
-  var booqablePromises = [];
+  var footageContext      = '';
+  var lookups             = [];
 
   if (detectsAvailabilityQuery(newUserMessage)) {
     var date = extractSimpleDate(newUserMessage);
     if (date) {
-      console.log('[Claude] Checking Booqable availability for date:', date);
-      booqablePromises.push(
-        getAvailabilityContext(newUserMessage, date).then(function(r) { availabilityContext = r || ''; })
-      );
+      console.log('[Claude] Checking availability for:', date);
+      lookups.push(getAvailabilityContext(newUserMessage, date)
+        .then(function(r) { if (r) availabilityContext = r; }));
     }
   }
 
@@ -423,54 +334,48 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     var lower     = newUserMessage.toLowerCase();
     var gearAsked = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
     if (gearAsked) {
-      console.log('[Claude] Fetching Booqable pricing for:', gearAsked);
-      booqablePromises.push(
-        getProductPricing(gearAsked).then(function(r) { pricingContext = r || ''; })
-      );
+      console.log('[Claude] Fetching pricing for:', gearAsked);
+      lookups.push(getProductPricing(gearAsked)
+        .then(function(r) { if (r) pricingContext = r; }));
     }
   }
 
-  // Wait for all Booqable checks (each already has 5s timeout)
-  if (booqablePromises.length > 0) {
-    await Promise.all(booqablePromises);
-    if (availabilityContext) console.log('[Claude] Availability context added');
-    if (pricingContext)      console.log('[Claude] Pricing context added');
+  if (detectsFootageQuery(newUserMessage)) {
+    console.log('[Claude] Searching footage...');
+    lookups.push(
+      Promise.race([
+        searchSampleFootage(newUserMessage).then(function(r) { if (r) footageContext = r; }),
+        new Promise(function(resolve) { setTimeout(resolve, 8000); }),
+      ])
+    );
   }
 
-  // 3 — Build user content
-  var extraContext = availabilityContext + pricingContext + footageContext;
-  var userContent;
+  if (lookups.length > 0) await Promise.all(lookups);
+  if (availabilityContext) console.log('[Claude] Availability context added');
+  if (pricingContext)      console.log('[Claude] Pricing context added');
+  if (footageContext)      console.log('[Claude] Footage context added');
 
+  var extraContext = availabilityContext + (availabilityContext ? '\n' : '')
+    + pricingContext + (pricingContext ? '\n' : '')
+    + footageContext;
+
+  var userContent;
   if (imageUrl) {
     var imageData = await fetchImageAsBase64(imageUrl);
     if (imageData) {
       userContent = [
-        {
-          type: 'image',
-          source: {
-            type:       'base64',
-            media_type: imageData.contentType,
-            data:       imageData.base64,
-          },
-        },
-        {
-          type: 'text',
-          text: (newUserMessage || 'The customer sent this image. Describe what you see and respond helpfully in the context of cinema equipment rental.') + extraContext,
-        },
+        { type: 'image', source: { type: 'base64', media_type: imageData.contentType, data: imageData.base64 } },
+        { type: 'text', text: (newUserMessage || 'Customer sent this image. Respond in context of cinema equipment rental.') + (extraContext ? '\n' + extraContext : '') },
       ];
     } else {
-      userContent = newUserMessage + ' [Customer sent an image but it could not be loaded]' + extraContext;
+      userContent = newUserMessage + ' [Image could not be loaded]' + (extraContext ? '\n' + extraContext : '');
     }
   } else {
-    userContent = newUserMessage + extraContext;
+    userContent = newUserMessage + (extraContext ? '\n' + extraContext : '');
   }
 
-  // 4 — Build messages
-  var messages = conversationHistory.concat([
-    { role: 'user', content: userContent }
-  ]);
+  var messages = conversationHistory.concat([{ role: 'user', content: userContent }]);
 
-  // 5 — Call Claude
   try {
     var response = await client.messages.create({
       model:      'claude-sonnet-4-20250514',
@@ -478,20 +383,13 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
       system:     systemWithDate,
       messages:   messages,
     });
-
     var reply = response.content[0] && response.content[0].text
       ? response.content[0].text
       : "Sorry, I didn't catch that. Could you repeat?";
-
-    var handoffTriggered = detectsHandoffTrigger(reply);
-    return { reply: reply, handoffTriggered: handoffTriggered };
-
+    return { reply: reply, handoffTriggered: detectsHandoffTrigger(reply) };
   } catch (err) {
     console.error('[Claude] askKino error:', err.message);
-    return {
-      reply:            "Sorry, I'm having a moment — please try again shortly, or message us directly.",
-      handoffTriggered: false,
-    };
+    return { reply: "Sorry, I'm having a moment — please try again shortly, or message us directly.", handoffTriggered: false };
   }
 }
 

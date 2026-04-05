@@ -34,9 +34,12 @@ async function sendMessage(waId, message) {
 async function assignToTeam(waId) {
   try {
     var res = await axios.post(
-      WATI_BASE_URL + '/api/v1/assignConversation/' + waId,
-      { assignedTo: null },
-      { headers: { 'Authorization': 'Bearer ' + WATI_API_KEY } }
+      WATI_BASE_URL + '/api/v1/assignConversation',
+      { whatsappNumber: waId, assignedTo: null },
+      { headers: {
+        'Authorization': 'Bearer ' + WATI_API_KEY,
+        'Content-Type':  'application/json',
+      }}
     );
     return res.data;
   } catch (err) {
@@ -73,84 +76,122 @@ async function sendTemplate(waId, templateName, parameters) {
 }
 
 // ─────────────────────────────────────────────
-// DOWNLOAD FILE FROM WATI (authenticated)
-// WATI internal URLs require the API bearer token
+// DOWNLOAD FILE — handles WATI redirect to CDN
+// WATI's showFile endpoint often redirects to S3/CDN
+// We get the redirect URL first, then download from there
 // ─────────────────────────────────────────────
 
 async function downloadWatiFile(fileUrl) {
+  // Attempt 1 — follow redirect, try with auth first
   try {
-    console.log('[WATI] Downloading file from WATI:', fileUrl.substring(0, 100));
-    var response = await axios({
+    console.log('[WATI] Downloading (with auth):', fileUrl.substring(0, 100));
+    var res = await axios({
       method:       'GET',
       url:          fileUrl,
       responseType: 'arraybuffer',
-      maxRedirects: 5,
+      maxRedirects: 10,
       timeout:      30000,
       headers: {
         'Authorization': 'Bearer ' + WATI_API_KEY,
-        'Accept':        '*/*',
+        'Accept':        'application/pdf,application/octet-stream,*/*',
       },
     });
-
-    // Determine correct content type
-    var contentType = response.headers['content-type'] || 'application/pdf';
-    // Strip charset or boundary info — keep only the mime type
-    contentType = contentType.split(';')[0].trim();
-
-    var buffer = Buffer.from(response.data);
-    console.log('[WATI] Downloaded ' + buffer.length + ' bytes, type: ' + contentType);
-
-    // Verify it looks like a PDF (starts with %PDF)
-    var header = buffer.slice(0, 4).toString('ascii');
-    if (header !== '%PDF') {
-      console.warn('[WATI] Warning: file does not start with %PDF header, got:', header);
+    var buf = Buffer.from(res.data);
+    var header = buf.slice(0, 4).toString('ascii');
+    console.log('[WATI] Downloaded ' + buf.length + ' bytes, header: "' + header + '"');
+    if (header === '%PDF') {
+      return { data: buf, contentType: 'application/pdf' };
     }
-
-    return { data: buffer, contentType: contentType };
-  } catch (err) {
-    console.error('[WATI] downloadWatiFile error:', err.message);
-    return null;
+    console.warn('[WATI] Auth download did not return PDF, trying without auth...');
+  } catch (e) {
+    console.warn('[WATI] Auth download failed:', e.message);
   }
+
+  // Attempt 2 — get redirect URL first, then download without auth
+  // (CDN URLs like S3 reject extra auth headers)
+  try {
+    console.log('[WATI] Getting redirect URL...');
+    var redirect = await axios({
+      method:       'GET',
+      url:          fileUrl,
+      maxRedirects: 0,
+      timeout:      10000,
+      headers: { 'Authorization': 'Bearer ' + WATI_API_KEY },
+      validateStatus: function(s) { return s < 400; },
+    });
+
+    var cdnUrl = redirect.headers && redirect.headers['location'];
+    if (cdnUrl) {
+      console.log('[WATI] Got CDN redirect URL:', cdnUrl.substring(0, 80));
+      var cdnRes = await axios({
+        method:       'GET',
+        url:          cdnUrl,
+        responseType: 'arraybuffer',
+        maxRedirects: 5,
+        timeout:      30000,
+      });
+      var cdnBuf    = Buffer.from(cdnRes.data);
+      var cdnHeader = cdnBuf.slice(0, 4).toString('ascii');
+      console.log('[WATI] CDN download: ' + cdnBuf.length + ' bytes, header: "' + cdnHeader + '"');
+      if (cdnHeader === '%PDF') {
+        return { data: cdnBuf, contentType: 'application/pdf' };
+      }
+    }
+  } catch (e) {
+    console.warn('[WATI] Redirect/CDN download failed:', e.message);
+  }
+
+  // Attempt 3 — try WATI getMedia endpoint by filename
+  try {
+    var fileNameMatch = fileUrl.match(/fileName=([^&]+)/);
+    if (fileNameMatch) {
+      var encodedName = fileNameMatch[1];
+      var mediaUrl    = WATI_BASE_URL + '/api/v1/getMedia?fileName=' + encodedName;
+      console.log('[WATI] Trying getMedia endpoint:', mediaUrl.substring(0, 100));
+      var mediaRes = await axios({
+        method:       'GET',
+        url:          mediaUrl,
+        responseType: 'arraybuffer',
+        timeout:      30000,
+        headers: { 'Authorization': 'Bearer ' + WATI_API_KEY },
+      });
+      var mediaBuf    = Buffer.from(mediaRes.data);
+      var mediaHeader = mediaBuf.slice(0, 4).toString('ascii');
+      console.log('[WATI] getMedia: ' + mediaBuf.length + ' bytes, header: "' + mediaHeader + '"');
+      if (mediaHeader === '%PDF') {
+        return { data: mediaBuf, contentType: 'application/pdf' };
+      }
+    }
+  } catch (e) {
+    console.warn('[WATI] getMedia failed:', e.message);
+  }
+
+  console.error('[WATI] All download attempts failed or returned non-PDF data');
+  return null;
 }
 
 // ─────────────────────────────────────────────
 // SEND FILE TO A WHATSAPP NUMBER
-// Always downloads first (for auth) then re-uploads as multipart
-// This avoids WATI fetching the URL without credentials
+// Downloads with auth, uploads as clean multipart
 // ─────────────────────────────────────────────
 
 async function sendFileToNumber(waId, fileUrl, filename, caption) {
   if (!filename) filename = 'equipment-list.pdf';
   if (!caption)  caption  = '';
 
-  console.log('[WATI] Sending file to ' + waId + ': ' + filename);
+  console.log('[WATI] Forwarding file to ' + waId + ': ' + filename);
 
-  // Always download first — WATI internal URLs need auth
   var downloaded = await downloadWatiFile(fileUrl);
   if (!downloaded) {
-    console.error('[WATI] Failed to download file — cannot forward');
+    console.error('[WATI] Download failed — cannot forward file');
     return null;
   }
-
-  // Determine file extension for correct content type
-  var ext = filename.split('.').pop().toLowerCase();
-  var mimeMap = {
-    pdf:  'application/pdf',
-    doc:  'application/msword',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xls:  'application/vnd.ms-excel',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    jpg:  'image/jpeg',
-    jpeg: 'image/jpeg',
-    png:  'image/png',
-  };
-  var contentType = mimeMap[ext] || downloaded.contentType || 'application/pdf';
 
   try {
     var form = new FormData();
     form.append('file', downloaded.data, {
       filename:    filename,
-      contentType: contentType,
+      contentType: 'application/pdf',
       knownLength: downloaded.data.length,
     });
     if (caption) form.append('caption', caption);
@@ -160,7 +201,7 @@ async function sendFileToNumber(waId, fileUrl, filename, caption) {
       form.getHeaders()
     );
 
-    console.log('[WATI] Uploading ' + downloaded.data.length + ' bytes as ' + contentType + ' to ' + waId);
+    console.log('[WATI] Uploading ' + downloaded.data.length + ' bytes to ' + waId);
 
     var res = await axios.post(
       WATI_BASE_URL + '/api/v1/sendSessionFile/' + waId,
@@ -168,19 +209,12 @@ async function sendFileToNumber(waId, fileUrl, filename, caption) {
       {
         headers:          headers,
         timeout:          60000,
-        maxContentLength: 25 * 1024 * 1024, // 25MB limit
+        maxContentLength: 25 * 1024 * 1024,
         maxBodyLength:    25 * 1024 * 1024,
       }
     );
 
     console.log('[WATI] sendSessionFile response:', JSON.stringify(res.data).substring(0, 200));
-
-    if (res.data && (res.data.ok || res.data.result === 'success')) {
-      console.log('[WATI] File forwarded to ' + waId + ' successfully');
-      return res.data;
-    }
-
-    console.warn('[WATI] sendSessionFile returned unexpected response:', JSON.stringify(res.data));
     return res.data;
 
   } catch (err) {
@@ -191,45 +225,41 @@ async function sendFileToNumber(waId, fileUrl, filename, caption) {
 
 // ─────────────────────────────────────────────
 // NOTIFY JEFF
-// Text alert + forwards the actual file (no handoff)
+// Text alert + clean file forward — no handoff
 // ─────────────────────────────────────────────
 
 async function notifyJeff(customerName, customerWaId, lastMessage, fileUrl, filename) {
   var jeffNumber = process.env.JEFF_WHATSAPP;
   if (!jeffNumber) {
-    console.log('[WATI] JEFF_WHATSAPP not set — skipping Jeff notification');
+    console.log('[WATI] JEFF_WHATSAPP not set — skipping');
     return null;
   }
 
-  // Text alert first
   var alertText = 'Hi Jeff, Kino has flagged a new enquiry for you.\n\n'
     + 'Customer: ' + customerName + '\n'
     + 'WA: +' + customerWaId + '\n\n'
-    + 'Equipment list is attached below. Please follow up directly.';
+    + 'Equipment list attached below. Please follow up directly.';
 
   await sendMessage(jeffNumber, alertText);
 
-  // Forward the actual file
   if (fileUrl) {
-    var fileResult = await sendFileToNumber(
+    var result = await sendFileToNumber(
       jeffNumber,
       fileUrl,
       filename || 'equipment-list.pdf',
       'Equipment list from ' + customerName
     );
-
-    if (!fileResult) {
-      console.error('[WATI] File forward to Jeff failed completely');
+    if (!result) {
       await sendMessage(jeffNumber,
-        'Note: File could not be forwarded automatically. '
-        + 'Please check the WATI conversation with +' + customerWaId + ' to access the original file.'
+        'Note: Could not auto-forward the file. '
+        + 'Please check the WATI conversation with +' + customerWaId + ' to view the original.'
       );
     }
   } else if (lastMessage) {
     await sendMessage(jeffNumber, 'Details: "' + lastMessage.substring(0, 300) + '"');
   }
 
-  console.log('[WATI] Jeff notification complete for customer ' + customerWaId);
+  console.log('[WATI] Jeff notification complete for ' + customerWaId);
   return true;
 }
 

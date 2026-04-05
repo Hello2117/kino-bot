@@ -69,11 +69,11 @@ app.post('/webhook/wati', async (req, res) => {
       setTimeout(function() { processed.delete(msgId); }, 3600000);
     }
 
-    // ── Text messages ─────────────────────────────────────────────────────
+    // ── Text ──────────────────────────────────────────────────────────────
     if (type === 'text') {
       var text = extractText(body);
       if (!text) {
-        console.log('[KINO] Could not extract text — payload:', JSON.stringify(body).substring(0, 300));
+        console.log('[KINO] Could not extract text:', JSON.stringify(body).substring(0, 200));
         return;
       }
       console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '"');
@@ -81,7 +81,7 @@ app.post('/webhook/wati', async (req, res) => {
       return;
     }
 
-    // ── Image messages ────────────────────────────────────────────────────
+    // ── Image ────────────────────────────────────────────────────────────
     if (type === 'image') {
       console.log('[WATI] Image payload:', JSON.stringify(body).substring(0, 400));
       var imageUrl = body.data || null;
@@ -91,44 +91,56 @@ app.post('/webhook/wati', async (req, res) => {
       return;
     }
 
-    // ── Document messages — notify Jeff silently, Kino keeps talking ──────
+    // ── Document — notify Jeff silently, Kino stays active ────────────────
     if (type === 'document') {
       var filename = (body.document && body.document.filename)
-        || body.fileName || body.filename || 'document';
+        || body.fileName || body.filename || null;
       var fileUrl  = body.data || body.fileUrl || body.url || null;
 
-      console.log('[KINO] Document from ' + waId + ' | file:', filename, '| url:', !!fileUrl);
+      console.log('[KINO] Document from ' + waId
+        + ' | filename: ' + (filename || 'unknown')
+        + ' | fileUrl: ' + (fileUrl ? fileUrl.substring(0, 60) : 'none'));
 
-      // Reply to customer — Kino stays in the conversation (no handoff)
-      var docReply = 'Thank you for sending your equipment list. I have forwarded it to our team and they will be in touch with you shortly.';
+      // Reply to customer — Kino stays in the conversation
+      var docReply = 'Thank you for sending your equipment list. '
+        + 'I have forwarded it to our team and they will be in touch with you shortly.';
       await sendMessage(waId, docReply);
 
-      // Notify Jeff silently with text alert + forward the actual file
+      // Notify Jeff with file — no handoff, Kino keeps going
       await notifyJeff(name, waId, null, fileUrl, filename);
 
-      // Pass document info into conversation context so Kino knows it was received
-      await handleIncomingMessage(waId, '[Customer sent a document: ' + filename + '. You have acknowledged receipt and notified the team. Continue the conversation normally.]', name);
+      // Continue Kino conversation with document context
+      await handleIncomingMessage(
+        waId,
+        '[Customer sent their equipment list as a document. '
+        + 'You have acknowledged it and forwarded to Jeff. '
+        + 'Continue the conversation — ask if they have any other questions.]',
+        name
+      );
       return;
     }
 
-    console.log('[KINO] Unsupported message type ignored:', type);
+    console.log('[KINO] Unsupported type ignored:', type);
 
   } catch (err) {
     console.error('[KINO] Webhook error:', err.message);
   }
 });
 
-// Admin: unblock a number directly
+// Admin: unblock a number
 app.get('/admin/unblock/:waId', async (req, res) => {
   if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
-  const { createClient } = require('@supabase/supabase-js');
-  const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-  await sb.from('kino_sessions').delete().eq('wa_id', req.params.waId);
-  console.log('[KINO] Unblocked ' + req.params.waId);
-  res.json({ success: true, message: req.params.waId + ' unblocked' });
+  try {
+    var sb = require('@supabase/supabase-js').createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+    await sb.from('kino_sessions').delete().eq('wa_id', req.params.waId);
+    console.log('[KINO] Unblocked ' + req.params.waId);
+    res.json({ success: true, message: req.params.waId + ' unblocked' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
-// Admin: resume bot after handoff
+// Admin: resume bot
 app.post('/admin/resume-bot', (req, res) => {
   var body = req.body;
   if (body.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
@@ -148,7 +160,7 @@ var PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('\nKINO is live on port ' + PORT);
   console.log('WATI webhook : POST /webhook/wati');
-  console.log('Admin unblock: GET  /admin/unblock/:waId?secret=xxx');
-  console.log('Admin resume : POST /admin/resume-bot');
+  console.log('Unblock      : GET  /admin/unblock/:waId?secret=xxx');
+  console.log('Resume bot   : POST /admin/resume-bot');
   console.log('Health check : GET  /\n');
 });

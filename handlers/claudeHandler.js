@@ -306,6 +306,93 @@ async function searchSampleFootage(customerMessage) {
   }
 }
 
+
+// ─────────────────────────────────────────────
+// FETCH PRODUCT PAGE FROM 2117.RENTALS
+// Gets the product URL + any video links from the website
+// ─────────────────────────────────────────────
+
+async function fetchProductPage(customerMessage) {
+  try {
+    var lower       = customerMessage.toLowerCase();
+    var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
+    if (!gearMention) return null;
+
+    var searchTerm = GEAR_SEARCH_MAP[gearMention] || gearMention;
+
+    // Step 1 — Search Booqable for the product to get its slug
+    var booqable = getBooqableClient();
+    if (!booqable) return null;
+
+    var searchRes = await booqable.get('/product_groups', { params: { q: searchTerm, per: 3 } });
+    var products  = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
+    if (products.length === 0) return null;
+
+    var results = [];
+    for (var i = 0; i < Math.min(products.length, 2); i++) {
+      var product = products[i];
+      var slug    = product.slug || product.name.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      var pageUrl = 'https://www.2117.rentals/products/' + slug;
+
+      console.log('[Claude] Fetching product page:', pageUrl);
+
+      try {
+        var pageRes  = await axios.get(pageUrl, { timeout: 8000,
+          headers: { 'User-Agent': 'Mozilla/5.0' } });
+        var html     = pageRes.data || '';
+
+        // Extract YouTube links
+        var youtubeMatches = html.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/g) || [];
+        var youtubeLinks   = youtubeMatches.map(function(m) {
+          var id = m.match(/([a-zA-Z0-9_-]{11})$/);
+          return id ? 'https://youtube.com/watch?v=' + id[1] : null;
+        }).filter(Boolean);
+
+        // Extract Vimeo links
+        var vimeoMatches = html.match(/vimeo\.com\/(?:video\/)?(\d+)/g) || [];
+        var vimeoLinks   = vimeoMatches.map(function(m) {
+          return 'https://' + m;
+        });
+
+        // Deduplicate
+        var allVideos = youtubeLinks.concat(vimeoLinks).filter(function(v, i, arr) {
+          return arr.indexOf(v) === i;
+        });
+
+        results.push({
+          name:    product.name,
+          pageUrl: pageUrl,
+          videos:  allVideos.slice(0, 3),
+        });
+
+      } catch(pageErr) {
+        console.warn('[Claude] Could not fetch product page:', pageUrl, pageErr.message);
+        // Still include the product URL even if fetch failed
+        results.push({ name: product.name, pageUrl: pageUrl, videos: [] });
+      }
+    }
+
+    if (results.length === 0) return null;
+
+    // Build context string
+    var lines = results.map(function(r) {
+      var line = r.name + ': ' + r.pageUrl;
+      if (r.videos.length > 0) {
+        line += ' | Videos: ' + r.videos.join(', ');
+      }
+      return line;
+    });
+
+    return '[PRODUCT PAGES FROM 2117.RENTALS: ' + lines.join(' || ')
+      + '. Share the product page URL with the customer so they can view specs, photos and video. Share video links if available.]';
+
+  } catch (err) {
+    console.error('[Claude] fetchProductPage error:', err.message);
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────
 // MAIN KINO FUNCTION
 // ─────────────────────────────────────────────
@@ -343,11 +430,23 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
   }
 
   if (detectsFootageQuery(newUserMessage)) {
-    console.log('[Claude] Searching footage...');
+    console.log('[Claude] Fetching product page + footage...');
     lookups.push(
       Promise.race([
-        searchSampleFootage(newUserMessage).then(function(r) { if (r) footageContext = r; }),
-        new Promise(function(resolve) { setTimeout(function() { console.warn("[Claude] Footage search timed out"); resolve(); }, 20000); }),
+        fetchProductPage(newUserMessage).then(function(r) {
+          if (r) {
+            footageContext = r;
+            console.log('[Claude] Product page context added');
+          } else {
+            // Fall back to web search if no product page found
+            return searchSampleFootage(newUserMessage).then(function(r2) {
+              if (r2) { footageContext = r2; console.log('[Claude] Footage search context added'); }
+            });
+          }
+        }),
+        new Promise(function(resolve) {
+          setTimeout(function() { console.warn('[Claude] Product page fetch timed out'); resolve(); }, 15000);
+        }),
       ])
     );
   }

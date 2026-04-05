@@ -324,6 +324,73 @@ async function getProductPricing(productName) {
 }
 
 // ─────────────────────────────────────────────
+// WEB SEARCH FOR SAMPLE FOOTAGE
+// Uses Anthropic web search tool to find footage links
+// ─────────────────────────────────────────────
+
+function detectsFootageQuery(text) {
+  var keywords = [
+    'sample', 'footage', 'example', 'demo', 'reel', 'showreel',
+    'how does it look', 'what does it look like', 'see the',
+    'video of', 'photo of', 'image of', 'contoh', 'sample video',
+    'boleh tengok', 'nak tengok', 'show me', 'can i see',
+    'instagram', 'youtube', 'vimeo', 'reference', 'test footage',
+    'color science', 'dynamic range', 'low light', 'skin tone',
+  ];
+  var lower = text.toLowerCase();
+  return keywords.some(function(k) { return lower.includes(k); });
+}
+
+async function searchSampleFootage(customerMessage) {
+  try {
+    // Find which gear they are asking about
+    var lower      = customerMessage.toLowerCase();
+    var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
+    var searchTerm  = gearMention
+      ? (GEAR_SEARCH_MAP[gearMention] || gearMention) + ' sample footage cinema'
+      : '2117 rentals Malaysia cinema equipment sample footage';
+
+    console.log('[Claude] Searching footage for:', searchTerm);
+
+    var response = await client.messages.create({
+      model:      'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      messages: [{
+        role:    'user',
+        content: 'Find 3 sample footage or showreel links for: ' + searchTerm
+          + '. Focus on Vimeo, YouTube, or manufacturer sites. '
+          + 'Return only a short list of links with one-line descriptions. '
+          + 'No commentary, just the links and descriptions.',
+      }],
+    });
+
+    // Extract text from response
+    var resultText = '';
+    if (response.content) {
+      response.content.forEach(function(block) {
+        if (block.type === 'text' && block.text) {
+          resultText += block.text;
+        }
+      });
+    }
+
+    if (!resultText || resultText.trim().length < 10) return null;
+
+    return '
+[WEB SEARCH FOOTAGE RESULTS for  + searchTerm + :
+'
+      + resultText.trim()
+      + '
+Share these links with the customer naturally, mentioning what each link shows.]';
+
+  } catch (err) {
+    console.error('[Claude] searchSampleFootage error:', err.message);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────
 // MAIN KINO FUNCTION
 // ─────────────────────────────────────────────
 
@@ -371,7 +438,7 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
   }
 
   // 3 — Build user content
-  var extraContext = availabilityContext + pricingContext;
+  var extraContext = availabilityContext + pricingContext + footageContext;
   var userContent;
 
   if (imageUrl) {

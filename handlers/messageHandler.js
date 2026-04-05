@@ -1,5 +1,6 @@
 // handlers/messageHandler.js
 const { askKino }                            = require('./claudeHandler');
+const { createCustomer }                     = require('../utils/booqableCustomer');
 const { sendMessage, assignToTeam, notifyJeff } = require('./watiHandler');
 const { notifyHandoff }                      = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
@@ -64,6 +65,19 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     await addMessage(waId, 'user', trimmedText);
     await addMessage(waId, 'assistant', reply);
     await sendMessage(waId, reply);
+
+    var updatedMissing2 = await getMissingFields(waId);
+    if (updatedMissing2.length === 0) {
+      var form2 = await getForm(waId);
+      if (form2.invoiceDetails && !form2.booqableCustomerId) {
+        createCustomer(form2.invoiceDetails, form2.invoiceType).then(function(result) {
+          if (result && result.customer) {
+            console.log('[Booqable] Customer registered: ' + result.customer.id + ' — ' + result.customer.name);
+            updateForm(waId, { booqableCustomerId: result.customer.id });
+          }
+        }).catch(function(e) { console.error('[Booqable] Customer creation error:', e.message); });
+      }
+    }
 
     if (handoffTriggered) {
       await markHandedOff(waId);

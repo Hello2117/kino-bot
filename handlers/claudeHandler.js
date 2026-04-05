@@ -85,17 +85,63 @@ function getBooqableClient() {
 // GEAR KEYWORDS
 // ─────────────────────────────────────────────
 
+// Exact Booqable product name fragments — matched against customer messages
+// Ordered from most specific to least specific to avoid false matches
 var GEAR_KEYWORDS = [
-  'alexa 35', 'alexa mini', 'venice', 'raptor', 'burano',
-  'fx3', 'fx6', 'fx9', 'signature prime', 'atlas orion', 'atlas mercury',
-  'zeiss super speed', 'contax zeiss', 'sigma cine', 'cooke sp3',
-  'lomo', 'dzofilm', 'arles', 'vespid', 'pictor', 'catta',
-  'laowa', 'blazar', 'remus', 'aivascope', 'dulens',
+  // Cameras — exact Booqable names
+  'arri alexa 35', 'alexa 35',
+  'arri alexa mini lf', 'alexa mini lf',
+  'arri alexa mini', 'alexa mini',
+  'sony venice 2 8k', 'venice 2',
+  'sony venice 6k', 'venice 6k', 'venice 1', 'venice 6',
+  'venice rialto', 'rialto',
+  'red v-raptor', 'v-raptor', 'raptor',
+  'sony burano', 'burano',
+  'sony fx3', 'fx3',
+  'sony fx6', 'fx6',
+  'red komodo', 'komodo',
+  // Lenses
+  'signature prime', 'arri signature',
+  'atlas orion', 'atlas mercury',
+  'zeiss super speed', 'super speed',
+  'contax zeiss', 'cooke sp3',
+  'sigma cine', 'sigma ff',
+  'dzofilm arles', 'arles',
+  'dzofilm vespid', 'vespid',
+  'dzofilm pictor', 'pictor',
+  'dzofilm catta', 'catta',
+  'blazar remus', 'remus',
+  'atlas anamorphic',
+  'laowa', 'aivascope', 'dulens',
   'leica-r', 'olympus zuiko', 'canon nfd', 'zero optik',
-  'hollyland', 'teradek', 'vaxis', 'sachtler', 'ronin',
-  'tilta', 'nucleus', 'smallhd', 'atomos', 'swit', 'fxlion',
-  'richard gale', 'clavius', 'arri master macro',
+  'lomo super speed',
+  // Support & accessories
+  'hollyland', 'teradek', 'vaxis storm',
+  'sachtler', 'tilta', 'nucleus-m',
+  'smallhd', 'atomos', 'swit',
+  'fxlion', 'richard gale', 'clavius',
 ];
+
+// Map customer terms to exact Booqable search queries
+var GEAR_SEARCH_MAP = {
+  'alexa 35':      'Arri Alexa 35',
+  'arri alexa 35': 'Arri Alexa 35',
+  'alexa mini lf': 'Arri Alexa Mini LF',
+  'arri alexa mini lf': 'Arri Alexa Mini LF',
+  'alexa mini':    'ARRI ALEXA Mini',
+  'venice 2':      'Sony Venice 2 8K',
+  'venice 6k':     'Sony Venice 6K',
+  'venice 6':      'Sony Venice 6K',
+  'venice 1':      'Sony Venice 6K',
+  'rialto':        'Sony Venice 2 8K Cinema Camera with Rialto',
+  'venice rialto': 'Sony Venice 2 8K Cinema Camera with Rialto',
+  'raptor':        'RED V-Raptor',
+  'v-raptor':      'RED V-Raptor',
+  'burano':        'Sony Burano',
+  'fx3':           'Sony FX3',
+  'fx6':           'Sony FX6',
+  'komodo':        'RED Komodo',
+};
 
 // ─────────────────────────────────────────────
 // DATE EXTRACTION
@@ -144,13 +190,17 @@ async function _fetchAvailability(text, fromDate) {
   var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
   if (!gearMention) return '';
 
+  // Use exact search term from map if available
+  var searchTerm = GEAR_SEARCH_MAP[gearMention] || gearMention;
+  console.log('[Claude] Booqable search term:', searchTerm);
+
   var searchRes = await booqable.get('/product_groups', {
-    params: { q: gearMention, per: 3 },
+    params: { q: searchTerm, per: 5 },
   });
 
   var products = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
   if (products.length === 0) {
-    console.log('[Claude] No Booqable products found for:', gearMention);
+    console.log('[Claude] No Booqable products found for:', searchTerm);
     return '';
   }
 
@@ -234,8 +284,9 @@ async function _fetchPricing(productName) {
   var booqable = getBooqableClient();
   if (!booqable) return null;
 
+  var searchTerm = GEAR_SEARCH_MAP[productName] || productName;
   var searchRes = await booqable.get('/product_groups', {
-    params: { q: productName, per: 5 },
+    params: { q: searchTerm, per: 5 },
   });
 
   var products = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];

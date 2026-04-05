@@ -242,10 +242,44 @@ async function buildFullQuote({ customerName, customerPhone, startsAt, stopsAt, 
   };
 }
 
+/**
+ * Search catalog and check availability for a product name and date range.
+ * @param {string} productName - e.g. "ARRI Alexa 35"
+ * @param {string} fromDate    - e.g. "2025-04-15"
+ * @param {string} tillDate    - e.g. "2025-04-17"
+ */
+async function checkProductAvailability(productName, fromDate, tillDate) {
+  try {
+    // Step 1: Search for the product
+    const products = await searchProducts(productName);
+    if (!products || products.length === 0) {
+      return { found: false, message: 'Product not found in catalog' };
+    }
+
+    // Step 2: Check availability for each matching product
+    var results = [];
+    for (var i = 0; i < Math.min(products.length, 3); i++) {
+      var product = products[i];
+      var availability = await checkAvailability(product.id, fromDate, tillDate);
+      results.push({
+        name:      product.name,
+        available: availability.available,
+        count:     availability.availableCount,
+      });
+    }
+
+    return { found: true, results: results };
+  } catch (err) {
+    console.error('[Booqable] checkProductAvailability error:', err.message);
+    return { found: false, message: 'Could not check availability' };
+  }
+}
+
 module.exports = {
   getCatalog,
   searchProducts,
   checkAvailability,
+  checkProductAvailability,
   findCustomerByPhone,
   createCustomer,
   getOrCreateCustomer,

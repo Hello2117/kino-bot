@@ -7,7 +7,13 @@ const { resumeBot, getSessionCount } = require('./utils/sessionStore');
 const app = express();
 app.use(express.json());
 
+// Deduplication cache
 const processed = new Set();
+
+// Debounce store — holds pending messages per customer
+// Key: waId, Value: { timer, messages: [], name }
+const debounceStore = new Map();
+const DEBOUNCE_MS = 4000; // Wait 4 seconds after last message before responding
 
 app.get('/', (req, res) => {
   res.json({
@@ -36,6 +42,42 @@ function extractText(body) {
     return body.message.extendedTextMessage.text.trim();
   }
   return null;
+}
+
+// Debounced message handler
+// Accumulates messages for DEBOUNCE_MS then fires once with combined text
+function debounceMessage(waId, text, name, imageUrl) {
+  var existing = debounceStore.get(waId);
+
+  if (existing) {
+    // Cancel previous timer
+    clearTimeout(existing.timer);
+    // Append new message to accumulated list
+    existing.messages.push(text);
+    if (imageUrl) existing.imageUrl = imageUrl;
+  } else {
+    existing = { messages: [text], name: name, imageUrl: imageUrl };
+    debounceStore.set(waId, existing);
+  }
+
+  // Set new timer
+  existing.timer = setTimeout(async function() {
+    debounceStore.delete(waId);
+
+    // Combine all accumulated messages into one
+    var combined = existing.messages.join('\n');
+    var msgCount = existing.messages.length;
+
+    if (msgCount > 1) {
+      console.log('[KINO] Debounced ' + msgCount + ' messages from ' + waId + ' into one');
+    }
+
+    try {
+      await handleIncomingMessage(waId, combined, existing.name, existing.imageUrl);
+    } catch(err) {
+      console.error('[KINO] handleIncomingMessage error:', err.message);
+    }
+  }, DEBOUNCE_MS);
 }
 
 app.post('/webhook/wati', async (req, res) => {
@@ -69,47 +111,41 @@ app.post('/webhook/wati', async (req, res) => {
       setTimeout(function() { processed.delete(msgId); }, 3600000);
     }
 
-    // ── Text ──────────────────────────────────────────────────────────────
+    // ── Text messages — debounced ─────────────────────────────────────────
     if (type === 'text') {
       var text = extractText(body);
       if (!text) {
         console.log('[KINO] Could not extract text:', JSON.stringify(body).substring(0, 200));
         return;
       }
-      console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '"');
-      await handleIncomingMessage(waId, text, name);
+      console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '" (debouncing...)');
+      debounceMessage(waId, text, name, null);
       return;
     }
 
-    // ── Image ────────────────────────────────────────────────────────────
+    // ── Image messages — debounced ────────────────────────────────────────
     if (type === 'image') {
       console.log('[WATI] Image payload:', JSON.stringify(body).substring(0, 400));
       var imageUrl = body.data || null;
       var caption  = body.text || body.caption || '';
       console.log('[KINO] Image from ' + waId + ' | URL found:', !!imageUrl);
-      await handleIncomingMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
+      debounceMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
       return;
     }
 
-    // ── Document — notify Jeff silently, Kino stays active ────────────────
+    // ── Document — notify Jeff immediately, no debounce needed ───────────
     if (type === 'document') {
       var filename = (body.document && body.document.filename)
         || body.fileName || body.filename || null;
       var fileUrl  = body.data || body.fileUrl || body.url || null;
 
-      console.log('[KINO] Document from ' + waId
-        + ' | filename: ' + (filename || 'unknown')
-        + ' | fileUrl: ' + (fileUrl ? fileUrl.substring(0, 60) : 'none'));
+      console.log('[KINO] Document from ' + waId + ' | file:', filename || 'unknown');
 
-      // Reply to customer — Kino stays in the conversation
       var docReply = 'Thank you for sending your equipment list. '
         + 'I have forwarded it to our team and they will be in touch with you shortly.';
       await sendMessage(waId, docReply);
-
-      // Notify Jeff with file — no handoff, Kino keeps going
       await notifyJeff(name, waId, null, fileUrl, filename);
 
-      // Continue Kino conversation with document context
       await handleIncomingMessage(
         waId,
         '[Customer sent their equipment list as a document. '
@@ -160,6 +196,7 @@ var PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('\nKINO is live on port ' + PORT);
   console.log('WATI webhook : POST /webhook/wati');
+  console.log('Debounce     : ' + DEBOUNCE_MS + 'ms');
   console.log('Unblock      : GET  /admin/unblock/:waId?secret=xxx');
   console.log('Resume bot   : POST /admin/resume-bot');
   console.log('Health check : GET  /\n');

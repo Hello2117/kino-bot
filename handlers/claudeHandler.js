@@ -242,12 +242,13 @@ async function _fetchPricing(productName) {
 }
 
 async function getProductPricing(productName) {
+  var timer;
   return Promise.race([
     _fetchPricing(productName).catch(function(e) {
       console.error('[Claude] pricing error:', e.message); return null;
-    }),
+    }).finally(function() { clearTimeout(timer); }),
     new Promise(function(resolve) {
-      setTimeout(function() { console.warn('[Claude] Pricing timed out'); resolve(null); }, 10000);
+      timer = setTimeout(function() { console.warn('[Claude] Pricing timed out'); resolve(null); }, 10000);
     }),
   ]);
 }
@@ -259,7 +260,7 @@ async function getProductPricing(productName) {
 function detectsFootageQuery(text) {
   var keywords = ['sample', 'footage', 'example', 'demo', 'reel', 'showreel',
     'how does it look', 'boleh tengok', 'nak tengok', 'show me', 'can i see',
-    'instagram', 'youtube', 'vimeo', 'reference', 'test footage',
+    'youtube', 'vimeo', 'reference', 'test footage',
     'color science', 'dynamic range', 'low light', 'skin tone', 'contoh'];
   return keywords.some(function(k) { return text.toLowerCase().includes(k); });
 }
@@ -281,10 +282,11 @@ async function searchSampleFootage(customerMessage) {
       tools:      [{ type: 'web_search_20250305', name: 'web_search' }],
       messages:   [{
         role:    'user',
-        content: 'Find 3 good sample footage or showreel links for: ' + searchQuery
-          + '. Focus on Vimeo, YouTube, or manufacturer sites. Return only a short list of links with one-line descriptions. No preamble.',
+        content: 'Search for sample footage and showreels for: ' + searchQuery
+          + '. Return 3 links from Vimeo, YouTube, or manufacturer sites with one-line descriptions. Links only, no preamble.',
       }],
     });
+    console.log('[Claude] Footage search response type:', response.stop_reason);
 
     var resultText = '';
     if (response.content) {
@@ -345,7 +347,7 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     lookups.push(
       Promise.race([
         searchSampleFootage(newUserMessage).then(function(r) { if (r) footageContext = r; }),
-        new Promise(function(resolve) { setTimeout(resolve, 8000); }),
+        new Promise(function(resolve) { setTimeout(function() { console.warn("[Claude] Footage search timed out"); resolve(); }, 20000); }),
       ])
     );
   }

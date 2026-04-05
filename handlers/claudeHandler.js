@@ -3,6 +3,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const axios     = require('axios');
 const fs        = require('fs');
 const path      = require('path');
+const catalog   = require('../utils/booqableCatalog');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -168,22 +169,42 @@ function detectsAvailabilityQuery(text) {
 async function _fetchAvailability(text, fromDate) {
   var booqable = getBooqableClient();
   if (!booqable) return '';
-  var lower       = text.toLowerCase();
-  var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
-  if (!gearMention) return '';
-  var searchTerm  = GEAR_SEARCH_MAP[gearMention] || gearMention;
-  console.log('[Claude] Booqable availability search:', searchTerm);
-  var searchRes = await booqable.get('/product_groups', { params: { q: searchTerm, per: 3 } });
-  var products  = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
+
+  // Use live catalog search — finds ANY product in inventory, not just hardcoded keywords
+  await catalog.ensureCatalogFresh();
+  var lower    = text.toLowerCase();
+
+  // First try catalog search with the full message
+  var words    = lower.split(/\s+/).filter(function(w) { return w.length > 3; });
+  var products = [];
+
+  // Try multi-word search first
+  for (var i = 0; i < words.length; i++) {
+    var found = catalog.searchCatalog(words[i]);
+    if (found.length > 0) { products = found; break; }
+  }
+
+  // Fall back to gear keyword map
+  if (products.length === 0) {
+    var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
+    if (gearMention) {
+      var searchTerm = GEAR_SEARCH_MAP[gearMention] || gearMention;
+      products = catalog.searchCatalog(searchTerm);
+    }
+  }
+
   if (products.length === 0) return '';
+  console.log('[Claude] Availability check — found products:', products.map(function(p) { return p.name; }).join(', '));
   var lines = [];
   for (var i = 0; i < products.length; i++) {
     var product   = products[i];
     var productId = product.products && product.products[0] && product.products[0].id;
     if (!productId) {
-      var pgRes = await booqable.get('/product_groups/' + product.id);
-      var pg    = pgRes.data && pgRes.data.product_group;
-      productId = pg && pg.products && pg.products[0] && pg.products[0].id;
+      try {
+        var pgRes = await booqable.get('/product_groups/' + product.id);
+        var pg    = pgRes.data && pgRes.data.product_group;
+        productId = pg && pg.products && pg.products[0] && pg.products[0].id;
+      } catch(e) { /* skip */ }
     }
     if (!productId) { lines.push(product.name + ': availability unknown'); continue; }
     var availRes  = await booqable.get('/products/' + productId + '/availability', {
@@ -225,17 +246,17 @@ function detectsPricingQuery(text) {
 }
 
 async function _fetchPricing(productName) {
-  var booqable  = getBooqableClient();
-  if (!booqable) return null;
+  // Use catalog for instant lookup — no API call needed
+  await catalog.ensureCatalogFresh();
   var searchTerm = GEAR_SEARCH_MAP[productName] || productName;
-  var searchRes  = await booqable.get('/product_groups', { params: { q: searchTerm, per: 5 } });
-  var products   = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
+  var products   = catalog.searchCatalog(searchTerm);
+  if (products.length === 0) {
+    // Try the raw product name too
+    products = catalog.searchCatalog(productName);
+  }
   if (products.length === 0) return null;
-  var lines = products.map(function(p) {
-    var price = p.base_price_in_cents
-      ? 'RM' + (p.base_price_in_cents / 100).toFixed(2) + '/day'
-      : 'price on request';
-    return p.name + ': ' + price;
+  var lines = products.slice(0, 5).map(function(p) {
+    return p.name + ': ' + (p.priceFormatted || 'price on request');
   });
   return '[BOOQABLE INDIVIDUAL PRICING: ' + lines.join(' | ')
     + '. Apply multi-day discount, 10% volume discount if total reaches RM5000, and 6% SST.]';
@@ -320,12 +341,10 @@ async function fetchProductPage(customerMessage) {
 
     var searchTerm = GEAR_SEARCH_MAP[gearMention] || gearMention;
 
-    // Step 1 — Search Booqable for the product to get its slug
-    var booqable = getBooqableClient();
-    if (!booqable) return null;
-
-    var searchRes = await booqable.get('/product_groups', { params: { q: searchTerm, per: 3 } });
-    var products  = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
+    // Use catalog for instant lookup
+    await catalog.ensureCatalogFresh();
+    var products = catalog.searchCatalog(searchTerm);
+    if (products.length === 0) products = catalog.searchCatalog(gearMention);
     if (products.length === 0) return null;
 
     var results = [];

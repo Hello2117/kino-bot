@@ -80,6 +80,71 @@ function debounceMessage(waId, text, name, imageUrl) {
   }, DEBOUNCE_MS);
 }
 
+async function handleStaffMessage(waId, text, name) {
+  var lower = text.toLowerCase().trim();
+
+  // Unblock a customer
+  if (lower.startsWith('unblock ')) {
+    var targetNumber = text.split(' ')[1].trim();
+    try {
+      var sb = require('@supabase/supabase-js')
+        .createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+      await sb.from('kino_sessions').delete().eq('wa_id', targetNumber);
+      await sendMessage(waId, 'Done — ' + targetNumber + ' has been unblocked. Kino is active again for this customer.');
+    } catch(e) {
+      await sendMessage(waId, 'Error unblocking ' + targetNumber + ': ' + e.message);
+    }
+    return;
+  }
+
+  // Resume bot for a customer
+  if (lower.startsWith('resume ')) {
+    var targetNumber = text.split(' ')[1].trim();
+    var { resumeBot } = require('./utils/sessionStore');
+    await resumeBot(targetNumber);
+    await sendMessage(waId, 'Done — Kino resumed for ' + targetNumber);
+    return;
+  }
+
+  // Check session status
+  if (lower.startsWith('status ')) {
+    var targetNumber = text.split(' ')[1].trim();
+    var sb = require('@supabase/supabase-js')
+      .createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+    var result = await sb.from('kino_sessions').select('*').eq('wa_id', targetNumber).single();
+    if (result.data) {
+      var session = result.data;
+      var form    = JSON.parse(session.form || '{}');
+      await sendMessage(waId,
+        'Session for ' + targetNumber + ':\n'
+        + 'Handed off: ' + session.handed_off + '\n'
+        + 'Job: ' + (form.jobName || 'not set') + '\n'
+        + 'Shoot date: ' + (form.shootingDate || 'not set') + '\n'
+        + 'Equipment: ' + (form.equipmentList || 'not set') + '\n'
+        + 'Messages: ' + (JSON.parse(session.messages || '[]').length) + ' in history'
+      );
+    } else {
+      await sendMessage(waId, 'No session found for ' + targetNumber);
+    }
+    return;
+  }
+
+  // Help menu
+  if (lower === 'help' || lower === 'kino help') {
+    await sendMessage(waId,
+      'Kino Staff Commands:\n\n'
+      + 'unblock [number] — Remove handoff block for a customer\n'
+      + 'resume [number] — Resume Kino for a customer\n'
+      + 'status [number] — View customer session details\n\n'
+      + 'Example: unblock 60123456789'
+    );
+    return;
+  }
+
+  // Default — staff messages are ignored by Kino
+  console.log('[KINO] Staff message ignored (not a command):', text.substring(0, 60));
+}
+
 app.post('/webhook/wati', async (req, res) => {
   res.sendStatus(200);
   try {
@@ -111,6 +176,16 @@ app.post('/webhook/wati', async (req, res) => {
       setTimeout(function() { processed.delete(msgId); }, 3600000);
     }
 
+// Staff number whitelist — loaded from env var
+var STAFF_NUMBERS = (process.env.STAFF_NUMBERS || '')
+  .split(',')
+  .map(function(n) { return n.trim(); })
+  .filter(Boolean);
+
+function isStaff(waId) {
+  return STAFF_NUMBERS.includes(waId);
+}
+
     // ── Text messages — debounced ─────────────────────────────────────────
     if (type === 'text') {
       var text = extractText(body);
@@ -119,6 +194,21 @@ app.post('/webhook/wati', async (req, res) => {
         return;
       }
       console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '" (debouncing...)');
+if (type === 'text') {
+      var text = extractText(body);
+      if (!text) return;
+
+      // Staff commands
+      if (isStaff(waId)) {
+        console.log('[KINO] Staff message from ' + waId + ': "' + text.substring(0, 60) + '"');
+        await handleStaffMessage(waId, text, name);
+        return;
+      }
+
+      console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '" (debouncing...)');
+      debounceMessage(waId, text, name, null);
+      return;
+    }
       debounceMessage(waId, text, name, null);
       return;
     }

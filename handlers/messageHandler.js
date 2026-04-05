@@ -21,41 +21,72 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   if (!text || !text.trim()) return;
   var trimmedText = text.trim();
 
-  // Check handoff status from Supabase
+  // Check handoff status
   var handedOff = await isHandedOff(waId);
   if (handedOff) {
     console.log('[KINO] ' + waId + ' is with human — bot silent');
     return;
   }
 
-  var lower = trimmedText.toLowerCase();
+  var lower   = trimmedText.toLowerCase();
   var history = await getSession(waId);
   var greetingTriggers = ['hi', 'hello', 'hey', 'start', 'mula', 'hai', 'alo', 'helo'];
+  var isGreeting = greetingTriggers.some(function(g) { return lower === g; });
 
-  // Returning customer — has history in Supabase
-  if (history.length > 0 && greetingTriggers.some(function(g) { return lower === g; })) {
-    // Don't restart — pass to Kino with returning customer context
-    await handleIncomingMessage(
-      waId,
-      trimmedText + '\n[SYSTEM: This is a returning customer. You have previous conversation history with them. Do not introduce yourself again or restart the enquiry. Acknowledge them warmly and continue from where you left off.]',
-      name,
-      imageUrl
-    );
+  // ── Returning customer — has history, don't restart ────────────────────
+  if (history.length > 0 && isGreeting) {
+    console.log('[KINO] Returning customer ' + waId + ' — continuing from history');
+    var returningContext = trimmedText
+      + '\n[SYSTEM: This is a returning customer. You have previous conversation history with them shown above. '
+      + 'Do not re-introduce yourself or restart the enquiry process. '
+      + 'Greet them warmly by referencing what you already know — their shoot, gear, or quote. '
+      + 'Pick up naturally from where you left off.]';
+
+    var missing = await getMissingFields(waId);
+    var formContext = missing.length > 0
+      ? '\n[SYSTEM: Enquiry form still missing: ' + missing.join(', ') + '.]'
+      : '\n[SYSTEM: Enquiry form is COMPLETE.]';
+
+    var results = await Promise.all([
+      askKino(history, returningContext + formContext, imageUrl),
+      extractFormFields(trimmedText, history),
+    ]);
+
+    var reply            = results[0].reply;
+    var handoffTriggered = results[0].handoffTriggered;
+    var semanticResult   = results[1];
+
+    if (semanticResult) {
+      var formUpdate = mapToFormUpdate(semanticResult);
+      if (formUpdate) await updateForm(waId, formUpdate);
+    }
+
+    await addMessage(waId, 'user', trimmedText);
+    await addMessage(waId, 'assistant', reply);
+    await sendMessage(waId, reply);
+
+    if (handoffTriggered) {
+      await markHandedOff(waId);
+      await Promise.all([
+        assignToTeam(waId),
+        notifyHandoff(waId, name, trimmedText, reply),
+        notifyJeff(name, waId, trimmedText),
+      ]);
+    }
     return;
   }
 
-  // New customer — no history
-  if (history.length === 0 && greetingTriggers.some(function(g) { return lower === g; })) {
+  // ── New customer greeting ──────────────────────────────────────────────
+  if (history.length === 0 && isGreeting) {
     await addMessage(waId, 'user', trimmedText);
     await addMessage(waId, 'assistant', GREETING);
     await sendMessage(waId, GREETING);
     return;
   }
 
-  // Pattern-based form extraction
+  // ── Standard message flow ─────────────────────────────────────────────
   extractAndUpdateForm(waId, trimmedText);
 
-  // Get missing fields
   var missing = await getMissingFields(waId);
   var formContext = missing.length > 0
     ? '\n[SYSTEM: Enquiry form status — still missing: ' + missing.join(', ') + '. Collect these naturally before generating a quote.]'
@@ -63,7 +94,6 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
 
   console.log('[KINO] ' + waId + ': "' + trimmedText.substring(0, 80) + '..." | missing: [' + (missing.join(', ') || 'none') + ']');
 
-  // Fire KINO reply + semantic extraction in parallel
   var results = await Promise.all([
     askKino(history, trimmedText + formContext, imageUrl),
     extractFormFields(trimmedText, history),
@@ -74,23 +104,18 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   var reply            = kinoResult.reply;
   var handoffTriggered = kinoResult.handoffTriggered;
 
-  // Merge semantic extraction into form
   if (semanticResult) {
     var formUpdate = mapToFormUpdate(semanticResult);
     if (formUpdate) {
       await updateForm(waId, formUpdate);
-      console.log('[SemanticExtractor] Auto-filled: ' + Object.keys(formUpdate).join(', ') + ' for ' + waId);
+      console.log('[SemanticExtractor] Auto-filled: ' + Object.keys(formUpdate).join(', '));
     }
   }
 
-  // Store messages
   await addMessage(waId, 'user', trimmedText);
   await addMessage(waId, 'assistant', reply);
-
-  // Send reply
   await sendMessage(waId, reply);
 
-  // Handle handoff
   if (handoffTriggered) {
     console.log('[KINO] Handoff triggered for ' + waId);
     await markHandedOff(waId);

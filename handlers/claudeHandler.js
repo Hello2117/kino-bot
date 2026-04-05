@@ -72,9 +72,10 @@ function getBooqableClient() {
   if (!process.env.BOOQABLE_API_KEY || !process.env.BOOQABLE_BASE_URL) return null;
   return axios.create({
     baseURL: process.env.BOOQABLE_BASE_URL,
-    timeout: 6000, // 6 second timeout — never block Kino's reply
+    params:  { api_key: process.env.BOOQABLE_API_KEY },
+    timeout: 12000, // 6 second timeout — never block Kino's reply
     headers: {
-      'Authorization': 'Bearer ' + process.env.BOOQABLE_API_KEY,
+      
       'Content-Type':  'application/json',
     },
   });
@@ -143,11 +144,11 @@ async function _fetchAvailability(text, fromDate) {
   var gearMention = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
   if (!gearMention) return '';
 
-  var searchRes = await booqable.get('/products', {
-    params: { 'filter[q]': gearMention, 'filter[status]': 'active', 'page[size]': 3 },
+  var searchRes = await booqable.get('/product_groups', {
+    params: { q: gearMention, per: 3 },
   });
 
-  var products = (searchRes.data && searchRes.data.products) || [];
+  var products = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
   if (products.length === 0) {
     console.log('[Claude] No Booqable products found for:', gearMention);
     return '';
@@ -157,18 +158,36 @@ async function _fetchAvailability(text, fromDate) {
   for (var i = 0; i < products.length; i++) {
     var product = products[i];
     try {
-      var availRes = await booqable.get('/products/' + product.id + '/stock_items', {
-        params: { 'filter[from]': fromDate, 'filter[till]': fromDate },
+      // Get products array from product group (contains individual product IDs)
+      var productId = product.products && product.products[0] && product.products[0].id;
+      if (!productId) {
+        // Fetch full product group to get nested products
+        var pgRes = await booqable.get('/product_groups/' + product.id);
+        var pg    = pgRes.data && pgRes.data.product_group;
+        productId = pg && pg.products && pg.products[0] && pg.products[0].id;
+      }
+      if (!productId) {
+        availLines.push(product.name + ': availability unknown');
+        continue;
+      }
+      // Use correct Booqable v1 availability endpoint
+      var availRes = await booqable.get('/products/' + productId + '/availability', {
+        params: { from: fromDate, till: fromDate, interval: 'day' },
       });
-      var items     = (availRes.data && availRes.data.stock_items) || [];
-      var available = items.filter(function(item) { return item.status === 'available'; });
+      // Response is keyed by date string — find the entry for our date
+      var availData = availRes.data;
+      var dateKey   = Object.keys(availData)[0]; // get first (and likely only) date entry
+      var entry     = availData[dateKey];
+      var avail     = entry ? entry.available : 0;
+      var total     = entry ? entry.total     : 0;
       availLines.push(
         product.name + ': ' +
-        (available.length > 0
-          ? 'AVAILABLE (' + available.length + ' unit(s))'
+        (avail > 0
+          ? 'AVAILABLE (' + avail + ' of ' + total + ' unit(s) free)'
           : 'NOT AVAILABLE — fully booked on this date')
       );
     } catch(e) {
+      console.warn('[Claude] availability check error for', product.name, ':', e.message);
       availLines.push(product.name + ': availability unknown');
     }
   }
@@ -189,7 +208,7 @@ async function getAvailabilityContext(text, fromDate) {
         setTimeout(function() {
           console.warn('[Claude] Booqable availability timed out — continuing without it');
           resolve('');
-        }, 5000);
+        }, 10000);
       }),
     ]);
     return result || '';
@@ -215,11 +234,11 @@ async function _fetchPricing(productName) {
   var booqable = getBooqableClient();
   if (!booqable) return null;
 
-  var searchRes = await booqable.get('/products', {
-    params: { 'filter[q]': productName, 'filter[status]': 'active', 'page[size]': 5 },
+  var searchRes = await booqable.get('/product_groups', {
+    params: { q: productName, per: 5 },
   });
 
-  var products = (searchRes.data && searchRes.data.products) || [];
+  var products = (searchRes.data && (searchRes.data.product_groups || searchRes.data.products)) || [];
   if (products.length === 0) return null;
 
   var lines = [];
@@ -243,7 +262,7 @@ async function getProductPricing(productName) {
         setTimeout(function() {
           console.warn('[Claude] Booqable pricing timed out — continuing without it');
           resolve(null);
-        }, 5000);
+        }, 10000);
       }),
     ]);
     return result || null;

@@ -52,6 +52,7 @@ async function fetchFullCatalog() {
             id:          p.id,
             name:        p.name,
             nameLower:   p.name.toLowerCase(),
+            nameNorm:    normalise(p.name.toLowerCase()),
             slug:        p.slug || '',
             price:       p.base_price_in_cents || 0,
             priceFormatted: p.base_price_in_cents
@@ -111,13 +112,24 @@ function isAccessory(product) {
   return ACCESSORY_KEYWORDS.some(function(k) { return n.includes(k); });
 }
 
+// Normalise a string for matching — strip mm/cm suffixes, normalise hyphens
+function normalise(str) {
+  return str.toLowerCase()
+    .replace(/(\d+)mm/g, '$1')      // 70-200mm → 70-200
+    .replace(/(\d+)cm/g, '$1')      // 50cm → 50
+    .replace(/f(\d+\.\d+)/g, 'f$1')  // f/2.8 → f2.8
+    .replace(/\//g, '')               // f/2.8 → f2.8
+    .trim();
+}
+
 // Score a product against a query — higher is better
 function scoreProduct(product, queryWords) {
-  var n     = product.nameLower;
-  var score = 0;
+  var n         = normalise(product.nameLower);
+  var normWords = queryWords.map(normalise);
+  var score     = 0;
 
-  // All words match — base requirement
-  var allMatch = queryWords.every(function(w) { return n.includes(w); });
+  // All words match — base requirement (using normalised versions)
+  var allMatch = normWords.every(function(w) { return w && n.includes(w); });
   if (!allMatch) return -1;
 
   // Exact full name match
@@ -129,11 +141,12 @@ function scoreProduct(product, queryWords) {
   // Not an accessory
   if (!isAccessory(product)) score += 300;
 
-  // Has stock — actually available
+  // Has stock — actually available, more stock = higher priority
   if (product.stockCount > 0) score += 100;
+  if (product.stockCount > 1) score += product.stockCount * 20; // prefer items with more units
 
   // Word match density — more query words matched = better
-  var matchedWords = queryWords.filter(function(w) { return n.includes(w); }).length;
+  var matchedWords = normWords.filter(function(w) { return w && n.includes(w); }).length;
   score += matchedWords * 50;
 
   // Shorter name = more likely the main product (not an accessory variant)
@@ -148,7 +161,7 @@ function scoreProduct(product, queryWords) {
 // Search catalog with smart ranking — returns best matches first
 function searchCatalog(query) {
   if (!query || catalog.length === 0) return [];
-  var lower = query.toLowerCase().trim();
+  var lower = normalise(query.toLowerCase().trim());
   var words = lower.split(/\s+/).filter(function(w) { return w.length > 0; });
   if (words.length === 0) return [];
 

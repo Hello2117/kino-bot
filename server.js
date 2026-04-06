@@ -4,6 +4,7 @@ const { handleIncomingMessage } = require('./handlers/messageHandler');
 const { sendMessage, notifyJeff } = require('./handlers/watiHandler');
 const { resumeBot, getSessionCount } = require('./utils/sessionStore');
 const { loadCatalog, getCatalogCount } = require('./utils/booqableCatalog');
+const { transcribeAudio }               = require('./utils/transcriber');
 
 const app = express();
 app.use(express.json());
@@ -137,6 +138,32 @@ app.post('/webhook/wati', async (req, res) => {
       var caption  = body.text || body.caption || '';
       console.log('[KINO] Image from ' + waId + ' | URL found:', !!imageUrl);
       debounceMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
+      return;
+    }
+
+    // ── Audio / Voice messages — transcribe then process ────────────────
+    if (type === 'audio' || type === 'voice' || type === 'ptt') {
+      var audioUrl = body.data || body.fileUrl || body.url || null;
+      console.log('[KINO] Voice message from ' + waId + ' | URL found:', !!audioUrl);
+
+      if (!audioUrl) {
+        await sendMessage(waId, "I received a voice message but couldn't access the audio. Could you type that out for me?");
+        return;
+      }
+
+      // Transcribe in background — send thinking message first
+      await sendMessage(waId, 'Give me a moment to listen to that...');
+
+      var transcript = await transcribeAudio(audioUrl);
+
+      if (!transcript) {
+        await sendMessage(waId, "Sorry, I had trouble understanding that voice message. Could you type it out instead?");
+        return;
+      }
+
+      console.log('[KINO] Voice transcript for ' + waId + ': "' + transcript.substring(0, 100) + '"');
+      // Process the transcript as a normal text message
+      await handleIncomingMessage(waId, '[Voice message transcript: ' + transcript + ']', name);
       return;
     }
 

@@ -414,6 +414,18 @@ async function getCatalogContext(text) {
         ? catalog.searchCatalog(mappedTerm)
         : catalog.searchCatalog(cleaned);
 
+      // Filter out accessories/cables when customer is asking for main gear
+      // (accessories have price 0 and names containing 'cable', 'cage', 'plate', 'adapter')
+      var accessoryKeywords = ['cable', 'cage', 'plate', 'adapter', 'cap', 'strap',
+        'battery', 'charger', 'case', 'bag', 'hood', 'mount', 'holder', 'bracket'];
+      var mainGear = results.filter(function(p) {
+        var nameLower = p.name.toLowerCase();
+        return !accessoryKeywords.some(function(a) { return nameLower.includes(a); })
+          || p.price > 0;
+      });
+      // Only use filtered results if we still have matches
+      if (mainGear.length > 0) results = mainGear;
+
       // Fallback: try individual words
       if (results.length === 0) {
         var words = cleaned.split(/\s+/).filter(function(w) { return w.length > 3; });

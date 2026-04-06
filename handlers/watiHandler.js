@@ -11,10 +11,9 @@ const WATI_API_KEY  = process.env.WATI_API_KEY;
 
 async function sendMessage(waId, message) {
   try {
-    // Strip markdown bold asterisks — WhatsApp renders them as literal characters
+    // Strip double-asterisk markdown (**bold**) but keep single *bold* for WhatsApp native bold
     var cleaned = message
-      .replace(/[*][*]([^*]+)[*][*]/g, '$1')
-      .replace(/[*]([^*\n]+)[*]/g, '$1');
+      .replace(/[*][*]([^*]+)[*][*]/g, '*$1*');
 
     var res = await axios.post(
       WATI_BASE_URL + '/api/v1/sendSessionMessage/' + waId,

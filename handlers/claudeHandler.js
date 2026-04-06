@@ -176,15 +176,35 @@ var GEAR_SEARCH_MAP = {
   'sony 70-200':         'Sony FE 70-200mm',
   'sony fe 70-200':      'Sony FE 70-200mm',
   '16-35mm':             'Sony FE 16-35mm',
-  // Lighting
+  // Tripods — map generic 'tripod' to search, let catalog find options
+  'tripod':              'Tripod',
+  'hi hat':              'Hi Hat',
+  'low boy':             'Low Boy',
+  'sachtler':            'Sachtler Video 25 Plus Tripod Set',
+  'oconnor':             'OConnor Ultimate 2560 Tripod Set',
+  'teris':               'Teris V12T',
+  'manfrotto':           'Manfrotto',
+  // Lighting — exact Booqable names
   'aputure':             'Aputure',
   'aperture':            'Aputure',
   'apurture':            'Aputure',
+  'aputure 600':         'Aputure 600C',
+  'aputure 600c':        'Aputure 600C',
+  '600c':                'Aputure 600C',
+  'storm 80c':           'Aputure Amaran',
+  'p60c':                'Aputure Amaran P60c',
+  'pt4c':                'Aputure Amaran PT4c',
+  'pt2c':                'Aputure Amaran PT2c',
+  'nanlite':             'Nanlite',
+  'nanlux':              'Nanlux',
+  'godox':               'Godox',
   'c stand':             'C Stand',
   'c-stand':             'C Stand',
   // Audio
   'sennheiser':          'Sennheiser',
-  'zoom f8':             'Zoom F8',
+  'sennheiser ew100':    'Sennheiser EW100',
+  'zoom f8':             'Zoom F8n',
+  'zoom f8n':            'Zoom F8n',
 };
 
 // ─────────────────────────────────────────────

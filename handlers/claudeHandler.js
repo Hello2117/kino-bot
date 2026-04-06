@@ -369,87 +369,135 @@ function detectsInventoryQuery(text) {
 async function getCatalogContext(text) {
   try {
     await catalog.ensureCatalogFresh();
-    var lower = text.toLowerCase();
 
-    // Extract meaningful words (3+ chars, not common words)
-    var stopWords = ['have', 'that', 'this', 'with', 'from', 'your', 'sure',
-      'just', 'need', 'want', 'looking', 'does', 'what', 'which', 'can',
-      'you', 'the', 'and', 'for', 'are', 'not', 'but', 'its', 'ada',
-      'nak', 'aku', 'saya', 'kita', 'yang'];
-    var words = lower.split(/\s+/).filter(function(w) {
-      return w.length >= 3 && !stopWords.includes(w);
-    });
+    // Parse each line of the message separately — handles equipment lists
+    var msgLines  = text.split(/\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+    var found     = {};  // keyed by product id to avoid duplicates
+    var notFound  = [];  // items customer mentioned that we couldn't find
 
-    // Search catalog for each word
-    var found = [];
-    var seen  = {};
-    words.forEach(function(word) {
-      var results = catalog.searchCatalog(word);
-      results.forEach(function(p) {
-        if (!seen[p.id]) {
-          seen[p.id] = true;
-          found.push(p);
-        }
-      });
-    });
-
-    if (found.length === 0) return null;
-
-    // Filter to only products with price > 0 (rentable items, not accessories/cables)
-    var rentable = found.filter(function(p) { return p.price > 0; });
-    var toShow   = rentable.length > 0 ? rentable : found;
-    toShow       = toShow.slice(0, 5);
-
-    // Parse requested quantities from message
-    function parseRequestedQty(productName, messageText) {
-      var nameLower = productName.toLowerCase();
-      var msgLower  = messageText.toLowerCase();
-      // Look for "product x3" or "3x product" patterns near the product name
-      var patterns  = [
-        new RegExp(nameLower.split(' ')[0] + '[^\\n]*x\\s*(\\d+)', 'i'),
-        new RegExp('(\\d+)\\s*x[^\\n]*' + nameLower.split(' ')[0], 'i'),
-        new RegExp(nameLower.split(' ')[0] + '[^\\n]*(\\d+)\\s*unit', 'i'),
-      ];
-      for (var pi = 0; pi < patterns.length; pi++) {
-        var m = msgLower.match(patterns[pi]);
-        if (m) return parseInt(m[1]);
-      }
-      // Count repeated lines with same product
-      var lines   = msgLower.split('\n');
-      var keyword = nameLower.split(' ')[0];
-      var count   = lines.filter(function(l) { return l.includes(keyword); }).length;
-      return count > 1 ? count : 1;
+    // Helper: extract quantity from a line e.g. "x3", "3x", "x 3 set"
+    function parseQty(line) {
+      var m = line.match(/x\s*(\d+)|(\d+)\s*x/i);
+      return m ? parseInt(m[1] || m[2]) : 1;
     }
 
-    var lines = toShow.map(function(p) {
-      var url      = catalog.getProductUrl(p);
-      var price    = p.priceFormatted ? ' — ' + p.priceFormatted : '';
-      var stock    = p.stockCount || 0;
-      var reqQty   = parseRequestedQty(p.name, text);
-      var stockMsg = '';
-      if (stock > 0 && reqQty > stock) {
-        stockMsg = ' [STOCK WARNING: customer requested ' + reqQty
-          + ' units but only ' + stock + ' available — flag this to customer]';
-      } else if (stock > 0) {
-        stockMsg = ' [stock: ' + stock + ' unit(s)]';
+    // Helper: clean a line for searching (remove qty markers, punctuation)
+    function cleanLine(line) {
+      return line
+        .replace(/x\s*\d+|\d+\s*x/gi, '')
+        .replace(/[+\/,;]/g, ' ')
+        .trim();
+    }
+
+    // Search each line individually
+    for (var i = 0; i < msgLines.length; i++) {
+      var line    = msgLines[i];
+      var cleaned = cleanLine(line);
+      var qty     = parseQty(line);
+
+      // Also count repeated identical lines (e.g. 3 lines of "Sony A7S3" = 3 units)
+      if (qty === 1) {
+        var dupCount = msgLines.filter(function(l) {
+          return cleanLine(l).toLowerCase() === cleaned.toLowerCase();
+        }).length;
+        if (dupCount > 1) qty = dupCount;
       }
-      return p.name + price + stockMsg + ' | ' + url;
+
+      // Try GEAR_SEARCH_MAP first, then direct catalog search
+      var lower      = cleaned.toLowerCase();
+      var mappedTerm = null;
+      Object.keys(GEAR_SEARCH_MAP).forEach(function(key) {
+        if (lower.includes(key)) mappedTerm = GEAR_SEARCH_MAP[key];
+      });
+
+      var results = mappedTerm
+        ? catalog.searchCatalog(mappedTerm)
+        : catalog.searchCatalog(cleaned);
+
+      // Fallback: try individual words
+      if (results.length === 0) {
+        var words = cleaned.split(/\s+/).filter(function(w) { return w.length > 3; });
+        for (var wi = 0; wi < words.length; wi++) {
+          results = catalog.searchCatalog(words[wi]);
+          if (results.length > 0) break;
+        }
+      }
+
+      if (results.length > 0) {
+        var p = results[0];
+        if (!found[p.id]) {
+          found[p.id] = { product: p, qty: qty };
+        } else {
+          // Already found — accumulate qty from duplicate lines
+          found[p.id].qty = Math.max(found[p.id].qty, qty);
+        }
+      } else {
+        // Only flag as not found if line looks like a product (not a greeting/question)
+        var looksLikeGear = cleaned.length > 3
+          && !/^(hi|hello|hey|may i|please|can you|could|would)/i.test(cleaned)
+          && !/^(what|how|when|where|is|are|do|does)/i.test(cleaned);
+        if (looksLikeGear && cleaned.length < 60) {
+          notFound.push(cleaned);
+        }
+      }
+    }
+
+    // Also do a whole-message scan for gear keywords not caught line-by-line
+    var lowerFull = text.toLowerCase();
+    GEAR_KEYWORDS.forEach(function(key) {
+      if (lowerFull.includes(key)) {
+        var term     = GEAR_SEARCH_MAP[key] || key;
+        var results  = catalog.searchCatalog(term);
+        if (results.length > 0) {
+          var p = results[0];
+          if (!found[p.id]) found[p.id] = { product: p, qty: 1 };
+        }
+      }
     });
 
-    console.log('[Claude] Catalog match found:', toShow.map(function(p) { return p.name; }).join(', '));
+    var foundList = Object.values(found);
+    if (foundList.length === 0 && notFound.length === 0) return null;
 
-    return '[BOOQABLE CATALOG MATCH: These products exist in 2117 inventory: '
-      + lines.join(' || ')
-      + '. Always state stock counts accurately. If requested quantity exceeds stock, '
-      + 'tell the customer clearly how many units are available. '
-      + 'Never quote gear that is not found in this catalog match. '
-      + 'Do not say it is not in our lineup if it appears here.]';
+    // Build context lines with stock validation
+    var lines = foundList.map(function(item) {
+      var p        = item.product;
+      var qty      = item.qty;
+      var stock    = p.stockCount || 0;
+      var price    = p.priceFormatted || 'pricing on request';
+      var url      = catalog.getProductUrl(p);
+      var stockMsg = '';
+
+      if (stock > 0 && qty > stock) {
+        stockMsg = ' [STOCK WARNING: ' + qty + ' requested, only ' + stock
+          + ' in stock — tell customer we can supply ' + stock
+          + ' and suggest sourcing remaining ' + (qty - stock) + ' from another rental house]';
+      } else if (stock > 0) {
+        stockMsg = ' [stock: ' + stock + ']';
+      }
+
+      return p.name + ' — ' + price + stockMsg + ' | ' + url;
+    });
+
+    // Add not-found items
+    if (notFound.length > 0) {
+      lines.push('[NOT IN CATALOG: ' + notFound.join(', ')
+        + ' — do not quote these. Offer alternatives from inventory or suggest outsourcing.]');
+    }
+
+    console.log('[Claude] Catalog context — found: ' + foundList.length
+      + ' products, not found: ' + notFound.length + ' items');
+
+    return '[BOOQABLE FULL CATALOG CHECK:\n' + lines.join('\n')
+      + '\nUse ONLY these prices. Never quote from memory. '
+      + 'Flag stock shortfalls clearly. '
+      + 'For NOT IN CATALOG items, offer the closest alternative or suggest outsource.]';
 
   } catch(err) {
     console.error('[Claude] getCatalogContext error:', err.message);
     return null;
   }
 }
+
 
 // ─────────────────────────────────────────────
 // WEB SEARCH — SAMPLE FOOTAGE

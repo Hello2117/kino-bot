@@ -84,17 +84,25 @@ function getBooqableClient() {
 // ─────────────────────────────────────────────
 
 var GEAR_KEYWORDS = [
+  // ARRI
   'arri alexa 35', 'alexa 35',
   'arri alexa mini lf', 'alexa mini lf',
   'arri alexa mini', 'alexa mini',
+  // Sony Cinema
   'sony venice 2 8k', 'venice 2',
   'sony venice 6k', 'venice 6k', 'venice 6', 'venice 1',
   'venice rialto', 'rialto',
-  'red v-raptor', 'v-raptor', 'raptor',
   'sony burano', 'burano',
+  // Sony FX / Alpha
   'sony fx3', 'fx3',
   'sony fx6', 'fx6',
+  'sony fx9', 'fx9',
+  'sony a7s3', 'a7s3', 'a7siii', 'a7s iii',
+  'sony a7s', 'a7s',
+  // RED
+  'red v-raptor', 'v-raptor', 'raptor',
   'red komodo', 'komodo',
+  // Lenses
   'signature prime', 'arri signature',
   'atlas orion', 'atlas mercury',
   'zeiss super speed', 'super speed',
@@ -105,30 +113,78 @@ var GEAR_KEYWORDS = [
   'blazar remus', 'remus',
   'laowa', 'aivascope', 'dulens',
   'leica-r', 'olympus zuiko', 'canon nfd', 'zero optik',
+  'sony fe 24-70', '24-70mm', 'sony 24-70',
+  'sony fe 70-200', '70-200mm', 'sony 70-200',
+  'sony fe 16-35', '16-35mm',
+  // Wireless
   'hollyland', 'teradek', 'vaxis storm',
+  // Support
   'sachtler', 'tilta', 'nucleus-m',
-  'smallhd', 'atomos', 'swit', 'fxlion',
+  'dana dolly', 'movmax', 'slider',
+  'tripod', 'hi hat', 'low boy',
+  // Monitors
+  'smallhd', 'atomos',
+  // Power
+  'swit', 'fxlion', 'vmount', 'v-mount',
+  // Lighting
+  'aputure', 'aperture', 'apurture',
+  'nanlite', 'nanlux', 'godox',
+  'arri skypanel', 'skypanel',
+  'litepanels', 'kino flo', 'kinoflo',
+  'c stand', 'c-stand', 'light stand',
+  'softbox', 'fresnel', 'bounce',
+  // Audio
+  'sennheiser', 'zoom f8', 'zoom f6',
+  'rode', 'dpa', 'lectrosonics',
+  'sound devices', 'mixpre',
 ];
 
 var GEAR_SEARCH_MAP = {
-  'alexa 35':          'Arri Alexa 35',
-  'arri alexa 35':     'Arri Alexa 35',
-  'alexa mini lf':     'Arri Alexa Mini LF',
-  'arri alexa mini lf':'Arri Alexa Mini LF',
-  'alexa mini':        'ARRI ALEXA Mini',
-  'venice 2':          'Sony Venice 2 8K',
-  'sony venice 2 8k':  'Sony Venice 2 8K',
-  'venice 6k':         'Sony Venice 6K',
-  'venice 6':          'Sony Venice 6K',
-  'venice 1':          'Sony Venice 6K',
-  'rialto':            'Sony Venice 2 8K Cinema Camera with Rialto',
-  'venice rialto':     'Sony Venice 2 8K Cinema Camera with Rialto',
-  'raptor':            'RED V-Raptor',
-  'v-raptor':          'RED V-Raptor',
-  'burano':            'Sony Burano',
-  'fx3':               'Sony FX3',
-  'fx6':               'Sony FX6',
-  'komodo':            'RED Komodo',
+  // ARRI
+  'alexa 35':            'Arri Alexa 35',
+  'arri alexa 35':       'Arri Alexa 35',
+  'alexa mini lf':       'Arri Alexa Mini LF',
+  'arri alexa mini lf':  'Arri Alexa Mini LF',
+  'alexa mini':          'ARRI ALEXA Mini',
+  // Sony Cinema
+  'venice 2':            'Sony Venice 2 8K',
+  'sony venice 2 8k':    'Sony Venice 2 8K',
+  'venice 6k':           'Sony Venice 6K',
+  'venice 6':            'Sony Venice 6K',
+  'venice 1':            'Sony Venice 6K',
+  'rialto':              'Sony Venice 2 8K Cinema Camera with Rialto',
+  'venice rialto':       'Sony Venice 2 8K Cinema Camera with Rialto',
+  'burano':              'Sony Burano',
+  // Sony FX / Alpha
+  'fx3':                 'Sony FX3',
+  'fx6':                 'Sony FX6',
+  'fx9':                 'Sony FX9',
+  'a7s3':                'Sony A7S3',
+  'a7siii':              'Sony A7S3',
+  'a7s iii':             'Sony A7S3',
+  'sony a7s3':           'Sony A7S3',
+  'sony a7s':            'Sony A7S',
+  // RED
+  'raptor':              'RED V-Raptor',
+  'v-raptor':            'RED V-Raptor',
+  'komodo':              'RED Komodo',
+  // Lenses
+  '24-70mm':             'Sony FE 24-70mm',
+  'sony 24-70':          'Sony FE 24-70mm',
+  'sony fe 24-70':       'Sony FE 24-70mm',
+  '70-200mm':            'Sony FE 70-200mm',
+  'sony 70-200':         'Sony FE 70-200mm',
+  'sony fe 70-200':      'Sony FE 70-200mm',
+  '16-35mm':             'Sony FE 16-35mm',
+  // Lighting
+  'aputure':             'Aputure',
+  'aperture':            'Aputure',
+  'apurture':            'Aputure',
+  'c stand':             'C Stand',
+  'c-stand':             'C Stand',
+  // Audio
+  'sennheiser':          'Sennheiser',
+  'zoom f8':             'Zoom F8',
 };
 
 // ─────────────────────────────────────────────

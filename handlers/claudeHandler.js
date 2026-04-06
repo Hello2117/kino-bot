@@ -422,7 +422,20 @@ async function getCatalogContext(text) {
     await catalog.ensureCatalogFresh();
 
     // Parse each line of the message separately — handles equipment lists
-    var msgLines  = text.split(/\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+    // Also split on '+' within lines (e.g. "Sony A7S3 + 24-70mm" = 2 products)
+    var rawLines = text.split(/\n/);
+    var msgLines = [];
+    rawLines.forEach(function(line) {
+      var trimmed = line.trim();
+      if (!trimmed) return;
+      // If line contains '+', split into sub-items
+      if (trimmed.includes('+')) {
+        var parts = trimmed.split('+').map(function(p) { return p.trim(); }).filter(Boolean);
+        parts.forEach(function(p) { msgLines.push(p); });
+      } else {
+        msgLines.push(trimmed);
+      }
+    });
     var found     = {};  // keyed by product id to avoid duplicates
     var notFound  = [];  // items customer mentioned that we couldn't find
 

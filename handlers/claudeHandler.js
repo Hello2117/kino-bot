@@ -709,6 +709,7 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
   if (availabilityContext) console.log('[Claude] Availability context added');
   if (pricingContext)      console.log('[Claude] Pricing context added');
   if (footageContext)      console.log('[Claude] Footage context added');
+  if (inventoryContext)    console.log('[Claude] Inventory context:\n' + inventoryContext.substring(0, 500));
 
   var extraContext = availabilityContext + (availabilityContext ? '\n' : '')
     + pricingContext + (pricingContext ? '\n' : '')

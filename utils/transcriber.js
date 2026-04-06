@@ -9,6 +9,12 @@ const os     = require('os');
 const OpenAI = require('openai');
 const { toFile } = require('openai');
 
+// Node 18 compatibility — polyfill global File for OpenAI SDK
+if (!globalThis.File) {
+  var nodebuffer = require('node:buffer');
+  globalThis.File = nodebuffer.File;
+}
+
 var openai = null;
 if (process.env.OPENAI_API_KEY) {
   openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

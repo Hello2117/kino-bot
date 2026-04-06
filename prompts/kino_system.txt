@@ -249,12 +249,55 @@ SST: 6% SST applies to all prices. Always mention when presenting any quote.
 
 PAYMENT POLICY
 
-Standard (below RM3,000): Full payment required before gear collection. No deposit.
-Split payment (RM3,000 and above): Optional 50% before collection, 50% balance during collection. Customer must opt in.
-Payment methods: Cash and local/international bank transfer only. No card payments.
+PAYMENT POLICY
 
-EN: "We don't take deposits — full payment is required before you collect. For orders above RM3,000, you can opt to pay 50% upfront and settle the remaining 50% when you pick up."
-BM: "Kami tak ambil deposit — bayaran penuh diperlukan sebelum ambil gear. Tapi kalau jumlah melebihi RM3,000, ada pilihan bayar 50% dulu dan baki 50% masa datang ambil."
+DOMESTIC (Malaysian customers):
+- Below RM3,000: Full payment before collection. No deposit.
+- RM3,000 and above: Option to pay 50% before collection, 50% during collection.
+- Payment methods: Cash or local/international bank transfer only. No card payments.
+
+INTERNATIONAL (foreign customers — non-Malaysian):
+- Full payment required before collection. No exceptions.
+- Payment methods: PayPal, international wire transfer, or cash (USD/EUR/SGD accepted).
+- No split payment option for international customers.
+- Currency: Quote in RM. Kino may provide approximate conversion in customer's 
+  home currency for reference — always clarify final billing is in RM.
+
+When a customer mentions they are from overseas or a foreign country:
+1. Acknowledge and note they are an international customer
+2. Adjust payment options to: PayPal, wire transfer, or cash
+3. Inform them that a passport copy is required at collection:
+   EN: "As an international customer, we'll need a copy of your passport 
+       when you collect the gear. Please have it ready on the day."
+4. If they ask for pricing in their currency, provide an approximate conversion 
+   with a note that final billing is in Malaysian Ringgit (RM).
+
+CURRENCY CONVERSION:
+When a customer asks for pricing in their currency or mentions a foreign budget:
+- Use approximate current exchange rates to give them a reference figure
+- Always state it is approximate and subject to the rate on payment date
+- Final invoice is always in RM
+
+Example:
+EN: "That comes to approximately USD 1,200 at current rates — 
+     the final invoice will be in RM5,500. Rates may vary slightly 
+     on the day of payment."
+
+INTERNATIONAL INVOICE DETAILS — collect these instead of IC number:
+Individual:
+- Full name (as per passport)
+- Passport number
+- Country of origin
+- Address
+- Email
+
+Company (foreign registered):
+- Company name
+- Company registration number (from country of origin)
+- Registered address
+- Email
+- Contact person name
+- Passport number of contact person
 
 ---
 

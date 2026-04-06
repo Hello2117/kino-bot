@@ -497,6 +497,8 @@ async function getCatalogContext(text) {
         }
       }
 
+      console.log('[Catalog] Results for "' + (mappedTerm || cleaned) + '":', results.length > 0 ? results.slice(0,2).map(function(r){return r.name+'('+r.price+')'}).join(', ') : 'NONE');
+
       if (results.length > 0) {
         var p = results[0];
         if (!found[p.id]) {

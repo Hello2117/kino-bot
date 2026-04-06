@@ -208,6 +208,57 @@ var GEAR_SEARCH_MAP = {
 };
 
 // ─────────────────────────────────────────────
+// PINNED PRODUCTS — exact Booqable data, no fuzzy search
+// Add product IDs from Booqable curl results
+// Format: 'search term': { name, stockCount, price, id }
+// ─────────────────────────────────────────────
+
+var PINNED_PRODUCTS = {
+  // Cameras
+  'sony alpha a7s iii': { name: 'Sony Alpha a7S III', stockCount: 3, price: 'RM500/day', id: null },
+  'sony a7s3':          { name: 'Sony Alpha a7S III', stockCount: 3, price: 'RM500/day', id: null },
+  'a7s3':               { name: 'Sony Alpha a7S III', stockCount: 3, price: 'RM500/day', id: null },
+  'a7s iii':            { name: 'Sony Alpha a7S III', stockCount: 3, price: 'RM500/day', id: null },
+  // Lenses
+  '70-200':             { name: 'Sony FE 70-200 F2.8 G Master (Mark ii)', stockCount: 3, price: 'RM200/day', id: null },
+  '24-70':              { name: 'Sony FE 24-70mm f/2.8 GM', stockCount: 2, price: 'RM150/day', id: null },
+  // Lighting
+  'storm 80c':          { name: 'Aputure STORM 80c BLAIR-CG LED Monolight', stockCount: 3, price: 'RM200/day', id: null },
+  '80c':                { name: 'Aputure STORM 80c BLAIR-CG LED Monolight', stockCount: 3, price: 'RM200/day', id: null },
+  'aputure 600c':       { name: 'Aputure LS 600C Pro', stockCount: 1, price: 'RM450/day', id: null },
+  '600c':               { name: 'Aputure LS 600C Pro', stockCount: 1, price: 'RM450/day', id: null },
+  'p60c':               { name: 'Aputure Amaran P60c RGBWW LED Panel', stockCount: 2, price: 'RM100/day', id: null },
+  'pt4c':               { name: 'Aputure Amaran PT4c RGBWW (4ft)', stockCount: 2, price: 'RM100/day', id: null },
+  'pt2c':               { name: 'Aputure Amaran PT2c RGBWW (2ft)', stockCount: 2, price: 'RM80/day', id: null },
+  // C-Stands
+  'c stand':            { name: 'Kupo Master C-Stand 40" Riser Sliding Leg', stockCount: 49, price: 'RM50/day', id: null },
+  'c-stand':            { name: 'Kupo Master C-Stand 40" Riser Sliding Leg', stockCount: 49, price: 'RM50/day', id: null },
+  // Tripods
+  'teris v12':          { name: 'Teris V12T Plus-Q Tripod (100mm)', stockCount: null, price: null, id: null },
+  'teris v15':          { name: 'Teris V15T-PLUS-Q Tripod (100mm)', stockCount: null, price: null, id: null },
+  'sachtler':           { name: 'Sachtler Video 25 Plus Tripod Set', stockCount: null, price: null, id: null },
+  'oconnor 2560':       { name: 'OConnor Ultimate 2560 Tripod Set', stockCount: null, price: null, id: null },
+  // Audio
+  'sennheiser':         { name: 'Sennheiser EW 112P G4 Portable Wireless Lavalier', stockCount: 2, price: 'RM150/day', id: null },
+  'ew100':              { name: 'Sennheiser EW 112P G4 Portable Wireless Lavalier', stockCount: 2, price: 'RM150/day', id: null },
+};
+
+// Look up pinned product by customer term
+function findPinnedProduct(term) {
+  var lower = term.toLowerCase().trim();
+  // Direct match
+  if (PINNED_PRODUCTS[lower]) return PINNED_PRODUCTS[lower];
+  // Partial match
+  var keys = Object.keys(PINNED_PRODUCTS);
+  for (var i = 0; i < keys.length; i++) {
+    if (lower.includes(keys[i]) || keys[i].includes(lower)) {
+      return PINNED_PRODUCTS[keys[i]];
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────
 // DATE EXTRACTION
 // ─────────────────────────────────────────────
 
@@ -410,20 +461,18 @@ async function getCatalogContext(text) {
         if (lower.includes(key)) mappedTerm = GEAR_SEARCH_MAP[key];
       });
 
+      // Smart catalog search — ranked by price, stock, name match
       var results = mappedTerm
         ? catalog.searchCatalog(mappedTerm)
         : catalog.searchCatalog(cleaned);
 
-      // Filter out accessories/cables when customer is asking for main gear
-      // (accessories have price 0 and names containing 'cable', 'cage', 'plate', 'adapter')
       var accessoryKeywords = ['cable', 'cage', 'plate', 'adapter', 'cap', 'strap',
-        'battery', 'charger', 'case', 'bag', 'hood', 'mount', 'holder', 'bracket'];
+        'battery', 'charger', 'case', 'bag', 'hood', 'mount', 'holder', 'bracket',
+        'smallrig', 'wooden camera', 'tilta cage', 'housing'];
       var mainGear = results.filter(function(p) {
-        var nameLower = p.name.toLowerCase();
-        return !accessoryKeywords.some(function(a) { return nameLower.includes(a); })
-          || p.price > 0;
+        var n = p.name.toLowerCase();
+        return !accessoryKeywords.some(function(a) { return n.includes(a); });
       });
-      // Only use filtered results if we still have matches
       if (mainGear.length > 0) results = mainGear;
 
       // Fallback: try individual words

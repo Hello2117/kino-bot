@@ -95,21 +95,74 @@ async function ensureCatalogFresh() {
   }
 }
 
-// Search catalog by name — fuzzy match
+// Accessory keywords — products with these are deprioritised
+var ACCESSORY_KEYWORDS = [
+  'cable', 'cage', 'plate', 'adapter', 'cap', 'strap', 'battery',
+  'charger', 'case', 'bag', 'hood', 'mount', 'holder', 'bracket',
+  'smallrig', 'wooden camera', 'housing', 'dovetail', 'rod', 'clamp',
+  'power splitter', 'd-tap', 'lemo', 'fischer', 'xdca', 'codex',
+  'cartoni', 'trigger', 'pin to', 'xlr', 'rosette', 'mitchell',
+];
+
+function isAccessory(product) {
+  var n = product.nameLower;
+  return ACCESSORY_KEYWORDS.some(function(k) { return n.includes(k); });
+}
+
+// Score a product against a query — higher is better
+function scoreProduct(product, queryWords) {
+  var n     = product.nameLower;
+  var score = 0;
+
+  // All words match — base requirement
+  var allMatch = queryWords.every(function(w) { return n.includes(w); });
+  if (!allMatch) return -1;
+
+  // Exact full name match
+  if (n === queryWords.join(' ')) score += 1000;
+
+  // Has a rental price — it's a main rentable item
+  if (product.price > 0) score += 500;
+
+  // Not an accessory
+  if (!isAccessory(product)) score += 300;
+
+  // Has stock — actually available
+  if (product.stockCount > 0) score += 100;
+
+  // Word match density — more query words matched = better
+  var matchedWords = queryWords.filter(function(w) { return n.includes(w); }).length;
+  score += matchedWords * 50;
+
+  // Shorter name = more likely the main product (not an accessory variant)
+  score -= product.name.length * 2;
+
+  // Query appears at start of name — strong signal
+  if (n.startsWith(queryWords[0])) score += 200;
+
+  return score;
+}
+
+// Search catalog with smart ranking — returns best matches first
 function searchCatalog(query) {
   if (!query || catalog.length === 0) return [];
   var lower = query.toLowerCase().trim();
-  var words = lower.split(/\s+/);
+  var words = lower.split(/\s+/).filter(function(w) { return w.length > 0; });
+  if (words.length === 0) return [];
 
-  return catalog.filter(function(product) {
-    // Match if all query words appear in product name
-    return words.every(function(word) {
-      return product.nameLower.includes(word);
-    });
-  }).slice(0, 5);
+  var scored = [];
+  catalog.forEach(function(product) {
+    var s = scoreProduct(product, words);
+    if (s >= 0) scored.push({ product: product, score: s });
+  });
+
+  // Sort by score descending
+  scored.sort(function(a, b) { return b.score - a.score; });
+
+  return scored.slice(0, 5).map(function(item) { return item.product; });
 }
 
-// Find closest match — returns single best match
+// Find best single match
 function findProduct(query) {
   var results = searchCatalog(query);
   return results.length > 0 ? results[0] : null;

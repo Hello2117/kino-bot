@@ -673,15 +673,15 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     }
   }
 
-  // Inventory lookup — search catalog for any product mentioned
+  // Catalog lookup — always runs (in-memory, no API call needed)
   var inventoryContext = '';
-  if (detectsInventoryQuery(newUserMessage)) {
-    lookups.push(
-      getCatalogContext(newUserMessage).then(function(r) {
-        if (r) { inventoryContext = r; console.log('[Claude] Inventory context added'); }
-      }).catch(function() {})
-    );
-  }
+  lookups.push(
+    getCatalogContext(newUserMessage).then(function(r) {
+      if (r) { inventoryContext = r; console.log('[Claude] Inventory context added'); }
+    }).catch(function(e) {
+      console.error('[Claude] getCatalogContext error:', e.message);
+    })
+  );
 
   if (detectsFootageQuery(newUserMessage)) {
     console.log('[Claude] Fetching product page + footage...');

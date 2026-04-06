@@ -102,6 +102,8 @@ var ACCESSORY_KEYWORDS = [
   'smallrig', 'wooden camera', 'housing', 'dovetail', 'rod', 'clamp',
   'power splitter', 'd-tap', 'lemo', 'fischer', 'xdca', 'codex',
   'cartoni', 'trigger', 'pin to', 'xlr', 'rosette', 'mitchell',
+  'tripod head', 'tripod plate', 'hi-hat', 'hi hat', 'low-leg', 'low leg',
+  'quick adapter', 'ronford', 'fluid head', 'head only',
 ];
 
 function isAccessory(product) {

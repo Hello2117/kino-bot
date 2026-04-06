@@ -3,7 +3,8 @@ const Anthropic = require('@anthropic-ai/sdk');
 const axios     = require('axios');
 const fs        = require('fs');
 const path      = require('path');
-const catalog   = require('../utils/booqableCatalog');
+const catalog      = require('../utils/booqableCatalog');
+const quoteBuilder = require('../utils/quoteBuilder');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -749,14 +750,22 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     }
   }
 
-  // Catalog lookup — always runs (in-memory, no API call needed)
+  // Quote builder — queries Booqable API directly per item (reliable, no fuzzy matching)
   var inventoryContext = '';
   lookups.push(
-    getCatalogContext(newUserMessage).then(function(r) {
-      if (r) { inventoryContext = r; console.log('[Claude] Inventory context added'); }
-    }).catch(function(e) {
-      console.error('[Claude] getCatalogContext error:', e.message);
-    })
+    Promise.race([
+      quoteBuilder.buildQuoteContext(newUserMessage).then(function(r) {
+        if (r) { inventoryContext = r; console.log('[Claude] Quote context added'); }
+      }).catch(function(e) {
+        console.error('[Claude] quoteBuilder error:', e.message);
+      }),
+      new Promise(function(resolve) {
+        setTimeout(function() {
+          console.warn('[Claude] Quote builder timed out');
+          resolve();
+        }, 15000);
+      }),
+    ])
   );
 
   if (detectsFootageQuery(newUserMessage)) {

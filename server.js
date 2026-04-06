@@ -151,9 +151,6 @@ app.post('/webhook/wati', async (req, res) => {
         return;
       }
 
-      // Transcribe in background — send thinking message first
-      await sendMessage(waId, 'Give me a moment to listen to that...');
-
       var transcript = await transcribeAudio(audioUrl);
 
       if (!transcript) {

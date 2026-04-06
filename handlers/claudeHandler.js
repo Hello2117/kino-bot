@@ -134,7 +134,7 @@ var GEAR_KEYWORDS = [
   'c stand', 'c-stand', 'light stand',
   'softbox', 'fresnel', 'bounce',
   // Audio
-  'sennheiser', 'zoom f8', 'zoom f6',
+  'sennheiser', 'sennheiser ew100', 'sennheiser ew112',
   'rode', 'dpa', 'lectrosonics',
   'sound devices', 'mixpre',
 ];
@@ -400,18 +400,50 @@ async function getCatalogContext(text) {
     var toShow   = rentable.length > 0 ? rentable : found;
     toShow       = toShow.slice(0, 5);
 
+    // Parse requested quantities from message
+    function parseRequestedQty(productName, messageText) {
+      var nameLower = productName.toLowerCase();
+      var msgLower  = messageText.toLowerCase();
+      // Look for "product x3" or "3x product" patterns near the product name
+      var patterns  = [
+        new RegExp(nameLower.split(' ')[0] + '[^\\n]*x\\s*(\\d+)', 'i'),
+        new RegExp('(\\d+)\\s*x[^\\n]*' + nameLower.split(' ')[0], 'i'),
+        new RegExp(nameLower.split(' ')[0] + '[^\\n]*(\\d+)\\s*unit', 'i'),
+      ];
+      for (var pi = 0; pi < patterns.length; pi++) {
+        var m = msgLower.match(patterns[pi]);
+        if (m) return parseInt(m[1]);
+      }
+      // Count repeated lines with same product
+      var lines   = msgLower.split('\n');
+      var keyword = nameLower.split(' ')[0];
+      var count   = lines.filter(function(l) { return l.includes(keyword); }).length;
+      return count > 1 ? count : 1;
+    }
+
     var lines = toShow.map(function(p) {
-      var url   = catalog.getProductUrl(p);
-      var price = p.priceFormatted ? ' — ' + p.priceFormatted : '';
-      return p.name + price + ' | ' + url;
+      var url      = catalog.getProductUrl(p);
+      var price    = p.priceFormatted ? ' — ' + p.priceFormatted : '';
+      var stock    = p.stockCount || 0;
+      var reqQty   = parseRequestedQty(p.name, text);
+      var stockMsg = '';
+      if (stock > 0 && reqQty > stock) {
+        stockMsg = ' [STOCK WARNING: customer requested ' + reqQty
+          + ' units but only ' + stock + ' available — flag this to customer]';
+      } else if (stock > 0) {
+        stockMsg = ' [stock: ' + stock + ' unit(s)]';
+      }
+      return p.name + price + stockMsg + ' | ' + url;
     });
 
     console.log('[Claude] Catalog match found:', toShow.map(function(p) { return p.name; }).join(', '));
 
     return '[BOOQABLE CATALOG MATCH: These products exist in 2117 inventory: '
       + lines.join(' || ')
-      + '. Confirm to the customer that this gear IS available in our inventory. '
-      + 'Share the product page URL. Do not say it is not in our lineup.]';
+      + '. Always state stock counts accurately. If requested quantity exceeds stock, '
+      + 'tell the customer clearly how many units are available. '
+      + 'Never quote gear that is not found in this catalog match. '
+      + 'Do not say it is not in our lineup if it appears here.]';
 
   } catch(err) {
     console.error('[Claude] getCatalogContext error:', err.message);

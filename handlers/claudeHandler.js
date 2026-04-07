@@ -201,6 +201,11 @@ var GEAR_SEARCH_MAP = {
   'p60c':                'Aputure Amaran P60c',
   'pt4c':                'Aputure Amaran PT4c',
   'pt2c':                'Aputure Amaran PT2c',
+  // Aputure LS family — exact Booqable names confirmed via curl
+  '1200d':              'Aputure LS 1200D Pro',
+  'aputure 1200d':      'Aputure LS 1200D Pro',
+  '1200x':              'Aputure STORM 1200x',
+  'aputure 1200x':      'Aputure STORM 1200x',
   'nanlite':             'Nanlite',
   'nanlux':              'Nanlux',
   'godox':               'Godox',

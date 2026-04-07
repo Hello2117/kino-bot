@@ -132,11 +132,16 @@ var GEAR_KEYWORDS = [
   'sound devices', 'mixpre',
   // Lighting accessories
   '300d', 'aputure 300d',
+  '300x', 'aputure 300x',
   '50d', 'aputure 50d',
   'flag', 'cutter', 'floppy',
+  '2x3 cutter', '4x4 floppy',
   'diffuser', 'diffusion',
-  'lightdome', 'light dome',
-  'lantern',
+  '2x3 diffusion', '4x4 diffusion',
+  '2x3 frame', '4x4 frame',
+  'lightdome', 'light dome', 'lightdome ii', 'lightdome mini',
+  'nanlite dome',
+  'lantern', 'lantern 60', 'lantern 90',
   'rock roller', 'rock n roller', 'camera cart',
 ];
 
@@ -206,29 +211,40 @@ var GEAR_SEARCH_MAP = {
   'sennheiser ew100':    'Sennheiser EW100',
   'zoom f8':             'Zoom F8n',
   'zoom f8n':            'Zoom F8n',
-// Aputure lights missing from map
-  '300d':           'Aputure LS 300D',
-  'aputure 300d':   'Aputure LS 300D',
-  '300x':           'Aputure 300X',
-  'aputure 300x':   'Aputure 300X',
-  '50d':            'Aputure STORM 80c',   // 50D not in inventory — map to closest alternative
-  'aputure 50d':    'Aputure STORM 80c',
-  // Flags — ambiguous, return multiple
-  'flag':           'cutter',
-  'cutter':         'cutter',
-  'floppy':         'floppy',
-  // Diffusion — ambiguous, return multiple
-  'diffuser':       'frame',
-  'diffusion':      'LEE diffusion',
-  // Lightdomes — ambiguous, return multiple
-  'lightdome':      'Lightdome',
-  'light dome':     'Lightdome',
-  // Lanterns — ambiguous, return multiple
-  'lantern':        'Aputure Lantern',
-  // Cart
-  'rock roller':    'Rock N Roller',
-  'rock n roller':  'Rock N Roller',
-  'camera cart':    'cart',
+  // Aputure lights — exact Booqable names confirmed
+  '300d':              'Aputure LS 300D Mark II',
+  'aputure 300d':      'Aputure LS 300D Mark II',
+  '300x':              'Aputure LS 300X Bi-Color',
+  'aputure 300x':      'Aputure LS 300X Bi-Color',
+  '50d':               'Aputure STORM 80c',        // 50D not in inventory — redirects to alternative
+  'aputure 50d':       'Aputure STORM 80c',
+  // Flags — exact Booqable names, ambiguous logic returns both
+  'flag':              '2x3 Cutter Flag',
+  'cutter':            '2x3 Cutter Flag',
+  '2x3 cutter':        '2x3 Cutter Flag',
+  'floppy':            '4x4 Floppy Flag',
+  '4x4 floppy':        '4x4 Floppy Flag',
+  // Diffusion frames — exact Booqable names, ambiguous logic returns both
+  'diffuser':          'Diffusion Frame',
+  'diffusion':         'Diffusion Frame',
+  '2x3 diffusion':     '2x3 Diffusion Frame',
+  '4x4 diffusion':     '4x4 Diffusion Frame',
+  '2x3 frame':         '2x3 Diffusion Frame',
+  '4x4 frame':         '4x4 Diffusion Frame',
+  // Lightdomes — exact Booqable names, ambiguous logic returns all variants
+  'lightdome':         'Aputure Lightdome',
+  'light dome':        'Aputure Lightdome',
+  'lightdome ii':      'Aputure Lightdome II',
+  'lightdome mini':    'Aputure Lightdome Mini',
+  'nanlite dome':      'Nanlite Dome 120cm',
+  // Lanterns — exact Booqable names, ambiguous logic returns both
+  'lantern':           'Aputure Lantern',
+  'lantern 60':        'Aputure Lantern 60cm',
+  'lantern 90':        'Aputure Lantern 90cm',
+  // Cart — exact Booqable name
+  'rock roller':       'Rock N Roller Cart',
+  'rock n roller':     'Rock N Roller Cart',
+  'camera cart':       'Rock N Roller Cart',
 };
 
 // ─────────────────────────────────────────────

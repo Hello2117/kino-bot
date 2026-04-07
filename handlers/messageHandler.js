@@ -6,6 +6,7 @@ const { notifyHandoff }                      = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
 const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
 const { generateQuotePDF, countQuoteItems }  = require('../utils/pdfGenerator');
+const { createBooqableOrder }                = require('../utils/booqableOrder');
 const { uploadQuotePDF, buildFilename }      = require('../utils/supabaseStorage');
 const {
   getSession,
@@ -34,23 +35,35 @@ async function maybeSendQuotePDF(waId, reply, name) {
 
     console.log('[PDF] ' + itemCount + ' items detected — generating quote PDF for ' + waId);
 
-    // Pull form data for customer/job name
-    var form       = await getForm(waId).catch(function() { return {}; });
-    var custName   = (form && form.invoiceDetails && form.invoiceDetails.name) || name || 'Customer';
-    var jobName    = (form && form.jobName) || 'Quote';
-    var shootDate  = (form && form.shootingDate) || null;
+    // Pull form data
+    var form      = await getForm(waId).catch(function() { return {}; });
+    var custName  = (form && form.invoiceDetails && form.invoiceDetails.name) || name || 'Customer';
+    var jobName   = (form && form.jobName) || 'Quote';
+    var shootDate = (form && form.shootingDate) || null;
 
-    var pdfBuffer  = await generateQuotePDF(reply, custName, jobName, shootDate);
-    var filename   = buildFilename(waId, jobName);
-    var publicUrl  = await uploadQuotePDF(pdfBuffer, filename);
+    // Create Booqable order to get real booking number
+    var orderNumber = null;
+    try {
+      var orderResult = await createBooqableOrder(form, reply);
+      orderNumber = orderResult.orderNumber;
+      console.log('[PDF] Booqable order created: #' + orderNumber + ' (' + orderResult.itemsAdded + '/' + orderResult.totalItems + ' items)');
+    } catch(orderErr) {
+      console.warn('[PDF] Booqable order creation failed (continuing without order number):', orderErr.message);
+    }
 
-    var caption = 'Your quote from TWENTYONESEVENTEEN — ' + jobName + '. Full pricing breakdown inside.';
-    await sendDocument(waId, publicUrl, 'Quote_2117.pdf', caption);
+    // Generate PDF with order number embedded
+    var pdfBuffer = await generateQuotePDF(reply, custName, jobName, shootDate, orderNumber);
+    var filename  = buildFilename(waId, jobName);
+    var publicUrl = await uploadQuotePDF(pdfBuffer, filename);
 
-    console.log('[PDF] Sent to ' + waId + ' | URL: ' + publicUrl);
+    var caption = orderNumber
+      ? 'Your quote from TWENTYONESEVENTEEN — ' + jobName + ' | Booking #' + orderNumber
+      : 'Your quote from TWENTYONESEVENTEEN — ' + jobName;
+
+    await sendDocument(waId, publicUrl, 'Quote_2117_' + (orderNumber || 'draft') + '.pdf', caption);
+    console.log('[PDF] Sent to ' + waId + ' | Order #' + orderNumber + ' | URL: ' + publicUrl);
   } catch (err) {
     console.error('[PDF] maybeSendQuotePDF error:', err.message);
-    // Non-fatal — KINO's text reply was already sent, PDF is a bonus
   }
 }
 

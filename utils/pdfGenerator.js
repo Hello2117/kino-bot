@@ -28,7 +28,7 @@ function countQuoteItems(replyText) {
 // PDF GENERATION
 // ─────────────────────────────────────────────
 
-function generateQuotePDF(replyText, customerName, jobName, shootDate) {
+function generateQuotePDF(replyText, customerName, jobName, shootDate, orderNumber) {
   return new Promise(function(resolve, reject) {
     try {
       var doc    = new PDFDocument({ margin: 50, size: 'A4' });
@@ -56,6 +56,13 @@ function generateQuotePDF(replyText, customerName, jobName, shootDate) {
         .fillColor(ACCENT)
         .text('2117.rentals  |  Cinema Equipment Rental', 70, 90);
 
+      if (orderNumber) {
+        doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold')
+          .text('BOOKING #' + orderNumber, 70 + W - 120, 65, { width: 110, align: 'right' });
+        doc.fillColor(ACCENT).fontSize(7.5).font('Helvetica')
+          .text('booqable order', 70 + W - 120, 82, { width: 110, align: 'right' });
+      }
+
       doc.moveDown(3);
 
       // ── QUOTE TITLE ─────────────────────────────────────────────────────
@@ -78,11 +85,13 @@ function generateQuotePDF(replyText, customerName, jobName, shootDate) {
       doc.text('JOB',       50,  metaY + 16);
       doc.text('SHOOT DATE', 50, metaY + 32);
       doc.text('GENERATED', col2, metaY);
+      if (orderNumber) doc.text('ORDER NO.', col2, metaY + 16);
 
       doc.font('Helvetica').fillColor(BRAND);
       doc.text(customerName || '—', 150, metaY);
       doc.text(jobName      || '—', 150, metaY + 16);
       doc.text(shootDate    || '—', 150, metaY + 32);
+      if (orderNumber) doc.text('#' + orderNumber, col2 + 80, metaY + 16);
       doc.text(new Date().toLocaleDateString('en-MY', {
         day: 'numeric', month: 'long', year: 'numeric',
         timeZone: 'Asia/Kuala_Lumpur'

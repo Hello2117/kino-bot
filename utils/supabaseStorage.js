@@ -6,10 +6,16 @@
 const { createClient } = require('@supabase/supabase-js');
 
 function getClient() {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-    throw new Error('Supabase env vars not set');
+  if (!process.env.SUPABASE_URL) {
+    throw new Error('SUPABASE_URL not set');
   }
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+  // Use service role key for storage uploads (bypasses RLS)
+  // Falls back to anon key if service key not set
+  var key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+  if (!key) throw new Error('No Supabase key set (SUPABASE_SERVICE_KEY or SUPABASE_KEY)');
+  return createClient(process.env.SUPABASE_URL, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 // Upload PDF buffer → returns public URL string

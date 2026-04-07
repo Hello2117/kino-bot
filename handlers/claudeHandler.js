@@ -172,9 +172,9 @@ var GEAR_SEARCH_MAP = {
   'lightdome':     'Aputure Lightdome',
   'light dome':    'Aputure Lightdome',
   'lantern':       'Aputure Lantern',
-  'rock roller':   'Rock N Roller Cart',
-  'rock n roller': 'Rock N Roller Cart',
-  'camera cart':   'Rock N Roller Cart',
+  'rock roller':   'Rock N Roller Cart R',  // prefix matches R6/R8/R12
+  'rock n roller': 'Rock N Roller Cart R',
+  'camera cart':   'Rock N Roller Cart R',
 
   // Audio typos
   'sennheiser ew100': 'Sennheiser EW',
@@ -299,7 +299,8 @@ function extractSimpleDate(text) {
 
 function detectsAvailabilityQuery(text) {
   var keywords = ['available', 'availability', 'ada tak', 'ada ke', 'boleh dapat',
-    'still free', 'book', 'reserve', 'tempah', 'is there', 'do you have', 'in stock', 'free on'];
+    'still free', 'book', 'reserve', 'tempah', 'is there', 'do you have', 'in stock', 'free on',
+    'how many', 'berapa unit', 'berapa ada', 'stok ada', 'how much stock'];
   return keywords.some(function(k) { return text.toLowerCase().includes(k); });
 }
 
@@ -432,15 +433,15 @@ async function getCatalogContext(text) {
     await catalog.ensureCatalogFresh();
 
     // Parse each line of the message separately — handles equipment lists
-    // Also split on '+' within lines (e.g. "Sony A7S3 + 24-70mm" = 2 products)
+    // Split on '+' and 'with' within lines (e.g. "Sony A7S3 + 24-70mm", "X21 with X23 Frame" = 2 products)
     var rawLines = text.split(/\n/);
     var msgLines = [];
     rawLines.forEach(function(line) {
       var trimmed = line.trim();
       if (!trimmed) return;
-      // If line contains '+', split into sub-items
-      if (trimmed.includes('+')) {
-        var parts = trimmed.split('+').map(function(p) { return p.trim(); }).filter(Boolean);
+      // If line contains '+' or 'with', split into sub-items
+      if (trimmed.includes('+') || /\bwith\b/i.test(trimmed)) {
+        var parts = trimmed.split(/\+|\bwith\b/i).map(function(p) { return p.trim(); }).filter(Boolean);
         parts.forEach(function(p) { msgLines.push(p); });
       } else {
         msgLines.push(trimmed);
@@ -515,7 +516,7 @@ function cleanLine(line) {
 
    // Ambiguous terms — show top 3 so Claude presents options to customer
       var AMBIGUOUS_TERMS = ['flag', 'cutter', 'floppy', 'diffuser', 'diffusion',
-        'frame', 'lightdome', 'light dome', 'lantern'];
+        'frame', 'lightdome', 'light dome', 'lantern', 'rock n roller', 'rock roller', 'camera cart'];
       var isAmbiguous = AMBIGUOUS_TERMS.some(function(a) {
         return lower.includes(a) || (mappedTerm && mappedTerm.toLowerCase().includes(a));
       });

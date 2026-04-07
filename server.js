@@ -3,7 +3,7 @@ const express = require('express');
 const { handleIncomingMessage } = require('./handlers/messageHandler');
 const { sendMessage, notifyJeff } = require('./handlers/watiHandler');
 const { resumeBot, getSessionCount } = require('./utils/sessionStore');
-const { loadCatalog, getCatalogCount } = require('./utils/booqableCatalog');
+const { loadCatalog, getCatalogCount, reloadCatalog, getCatalogAge } = require('./utils/booqableCatalog');
 const { transcribeAudio }               = require('./utils/transcriber');
 
 const app = express();
@@ -27,7 +27,7 @@ app.get('/', (req, res) => {
     status:    'KINO is live',
     channel:   'Meta Cloud API via WATI',
     sessions:  getSessionCount(),
-    catalog:   getCatalogCount() + ' products',
+    catalog:   getCatalogCount() + ' products (refreshed ' + getCatalogAge() + ')',
     uptime:    Math.floor(process.uptime()) + 's',
   });
 });
@@ -191,6 +191,18 @@ app.post('/webhook/wati', async (req, res) => {
 
   } catch (err) {
     console.error('[KINO] Webhook error:', err.message);
+  }
+});
+
+// Admin: force catalog reload
+app.post('/admin/reload-catalog', async (req, res) => {
+  if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    var count = await reloadCatalog();
+    console.log('[KINO] Catalog force-reloaded: ' + count + ' products');
+    res.json({ success: true, products: count, message: 'Catalog reloaded from Booqable' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

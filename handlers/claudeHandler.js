@@ -146,110 +146,38 @@ var GEAR_KEYWORDS = [
 ];
 
 var GEAR_SEARCH_MAP = {
-  // ARRI
-  'alexa 35':            'Arri Alexa 35',
-  'arri alexa 35':       'Arri Alexa 35',
-  'alexa mini lf':       'Arri Alexa Mini LF',
-  'arri alexa mini lf':  'Arri Alexa Mini LF',
-  'alexa mini':          'ARRI ALEXA Mini',
-  // Sony Cinema
-  'venice 2':            'Sony Venice 2 8K',
-  'sony venice 2 8k':    'Sony Venice 2 8K',
-  'venice 6k':           'Sony Venice 6K',
-  'venice 6':            'Sony Venice 6K',
-  'venice 1':            'Sony Venice 6K',
-  'rialto':              'Sony Venice 2 8K Cinema Camera with Rialto',
-  'venice rialto':       'Sony Venice 2 8K Cinema Camera with Rialto',
-  'burano':              'Sony Burano',
-  // Sony FX / Alpha
-  'fx3':                 'Sony FX3',
-  'fx6':                 'Sony FX6',
-  'fx9':                 'Sony FX9',
-  'a7s3':                'Sony A7S3',
-  'a7siii':              'Sony A7S3',
-  'a7s iii':             'Sony A7S3',
-  'sony a7s3':           'Sony A7S3',
-  'sony a7s':            'Sony A7S',
-  // RED
-  'raptor':              'RED V-Raptor',
-  'v-raptor':            'RED V-Raptor',
-  'komodo':              'RED Komodo',
-  // Lenses
-  '24-70mm':             'Sony FE 24-70mm',
-  'sony 24-70':          'Sony FE 24-70mm',
-  'sony fe 24-70':       'Sony FE 24-70mm',
-  '70-200mm':            'Sony FE 70-200mm',
-  'sony 70-200':         'Sony FE 70-200mm',
-  'sony fe 70-200':      'Sony FE 70-200mm',
-  '16-35mm':             'Sony FE 16-35mm',
-  // Tripods — map generic 'tripod' to search, let catalog find options
-  'tripod':              'Tripod',
-  'hi hat':              'Hi Hat',
-  'low boy':             'Low Boy',
-  'sachtler':            'Sachtler Video 25 Plus Tripod Set',
-  'oconnor':             'OConnor Ultimate 2560 Tripod Set',
-  'teris':               'Teris V12T',
-  'manfrotto':           'Manfrotto',
-  // Lighting — exact Booqable names
-  'aputure':             'Aputure',
-  'aperture':            'Aputure',
-  'apurture':            'Aputure',
-  'aputure 600':         'Aputure 600C',
-  'aputure 600c':        'Aputure 600C',
-  '600c':                'Aputure 600C',
-  'storm 80c':           'Aputure Amaran',
-  'p60c':                'Aputure Amaran P60c',
-  'pt4c':                'Aputure Amaran PT4c',
-  'pt2c':                'Aputure Amaran PT2c',
-  // Aputure LS family — exact Booqable names confirmed via curl
-  '1200d':              'Aputure LS 1200D Pro',
-  'aputure 1200d':      'Aputure LS 1200D Pro',
-  '1200x':              'Aputure STORM 1200x',
-  'aputure 1200x':      'Aputure STORM 1200x',
-  'nanlite':             'Nanlite',
-  'nanlux':              'Nanlux',
-  'godox':               'Godox',
-  'c stand':             'C Stand',
-  'c-stand':             'C Stand',
-  // Audio
-  'sennheiser':          'Sennheiser',
-  'sennheiser ew100':    'Sennheiser EW100',
-  'zoom f8':             'Zoom F8n',
-  'zoom f8n':            'Zoom F8n',
-  // Aputure lights — exact Booqable names confirmed
-  '300d':              'Aputure LS 300D Mark II',
-  'aputure 300d':      'Aputure LS 300D Mark II',
-  '300x':              'Aputure LS 300X Bi-Color',
-  'aputure 300x':      'Aputure LS 300X Bi-Color',
-  '50d':               'Aputure STORM 80c',        // 50D not in inventory — redirects to alternative
-  'aputure 50d':       'Aputure STORM 80c',
-  // Flags — exact Booqable names, ambiguous logic returns both
-  'flag':              '2x3 Cutter Flag',
-  'cutter':            '2x3 Cutter Flag',
-  '2x3 cutter':        '2x3 Cutter Flag',
-  'floppy':            '4x4 Floppy Flag',
-  '4x4 floppy':        '4x4 Floppy Flag',
-  // Diffusion frames — exact Booqable names, ambiguous logic returns both
-  'diffuser':          'Diffusion Frame',
-  'diffusion':         'Diffusion Frame',
-  '2x3 diffusion':     '2x3 Diffusion Frame',
-  '4x4 diffusion':     '4x4 Diffusion Frame',
-  '2x3 frame':         '2x3 Diffusion Frame',
-  '4x4 frame':         '4x4 Diffusion Frame',
-  // Lightdomes — exact Booqable names, ambiguous logic returns all variants
-  'lightdome':         'Aputure Lightdome',
-  'light dome':        'Aputure Lightdome',
-  'lightdome ii':      'Aputure Lightdome II',
-  'lightdome mini':    'Aputure Lightdome Mini',
-  'nanlite dome':      'Nanlite Dome 120cm',
-  // Lanterns — exact Booqable names, ambiguous logic returns both
-  'lantern':           'Aputure Lantern',
-  'lantern 60':        'Aputure Lantern 60cm',
-  'lantern 90':        'Aputure Lantern 90cm',
-  // Cart — exact Booqable name
-  'rock roller':       'Rock N Roller Cart',
-  'rock n roller':     'Rock N Roller Cart',
-  'camera cart':       'Rock N Roller Cart',
+  // TYPOS / ALIASES only — exact product names are found directly via searchCatalog
+  // Only add entries here when the customer term is FUNDAMENTALLY different from the Booqable name
+
+  // Camera typos/aliases
+  'a7siii':        'Sony A7S III',
+  'a7s iii':       'Sony A7S III',
+  'a7s3':          'Sony Alpha a7S III',
+  'venice 2':      'Sony Venice 2',
+  'venice 6k':     'Sony Venice 6K',
+  'venice 1':      'Sony Venice',
+  'v-raptor':      'RED V-Raptor',
+  'raptor':        'RED V-Raptor',
+
+  // Lighting typos/aliases
+  'aperture':      'Aputure',
+  'apurture':      'Aputure',
+
+  // Lighting accessories — ambiguous terms needing disambiguation
+  'flag':          '2x3 Cutter Flag',
+  'cutter':        '2x3 Cutter Flag',
+  'floppy':        '4x4 Floppy Flag',
+  'diffuser':      'Diffusion Frame',
+  'diffusion':     'Diffusion Frame',
+  'lightdome':     'Aputure Lightdome',
+  'light dome':    'Aputure Lightdome',
+  'lantern':       'Aputure Lantern',
+  'rock roller':   'Rock N Roller Cart',
+  'rock n roller': 'Rock N Roller Cart',
+  'camera cart':   'Rock N Roller Cart',
+
+  // Audio typos
+  'sennheiser ew100': 'Sennheiser EW',
 };
 
 // ─────────────────────────────────────────────

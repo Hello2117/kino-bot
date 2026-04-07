@@ -441,7 +441,8 @@ function parseQty(line) {
 
 function cleanLine(line) {
   return line
-    .replace(/x\s*\d+|\d+\s*x/gi, '')       // remove x2, 3x
+    .replace(/^[·•\-\*]\s*/g, '')            // strip bullet chars at start
+    .replace(/x\s*\d+|\d+\s*x/gi, '')        // remove x2, 3x
     .replace(/-\s*\d+\s*units?/gi, '')        // remove "- 2 units"
     .replace(/\d+\s*units?/gi, '')            // remove "2 units"
     .replace(/[+\/,;:-]/g, ' ')              // remove punctuation

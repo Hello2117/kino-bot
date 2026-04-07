@@ -433,19 +433,21 @@ async function getCatalogContext(text) {
     var notFound  = [];  // items customer mentioned that we couldn't find
 
     // Helper: extract quantity from a line e.g. "x3", "3x", "x 3 set"
-    function parseQty(line) {
-      var m = line.match(/x\s*(\d+)|(\d+)\s*x/i);
-      return m ? parseInt(m[1] || m[2]) : 1;
-    }
+function parseQty(line) {
+  // Handles: x3, 3x, "- 2 units", "2 unit", "x 2"
+  var m = line.match(/x\s*(\d+)|(\d+)\s*x|-\s*(\d+)\s*unit|(\d+)\s*unit/i);
+  return m ? parseInt(m[1] || m[2] || m[3] || m[4]) : 1;
+}
 
-    // Helper: clean a line for searching (remove qty markers, punctuation)
-    function cleanLine(line) {
-      return line
-        .replace(/x\s*\d+|\d+\s*x/gi, '')
-        .replace(/[+\/,;]/g, ' ')
-        .trim();
-    }
-
+function cleanLine(line) {
+  return line
+    .replace(/x\s*\d+|\d+\s*x/gi, '')       // remove x2, 3x
+    .replace(/-\s*\d+\s*units?/gi, '')        // remove "- 2 units"
+    .replace(/\d+\s*units?/gi, '')            // remove "2 units"
+    .replace(/[+\/,;:-]/g, ' ')              // remove punctuation
+    .replace(/\s+/g, ' ')                    // collapse spaces
+    .trim();
+}
     // Search each line individually
     for (var i = 0; i < msgLines.length; i++) {
       var line    = msgLines[i];

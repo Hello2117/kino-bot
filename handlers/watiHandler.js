@@ -267,4 +267,18 @@ async function notifyJeff(customerName, customerWaId, lastMessage, fileUrl, file
   return true;
 }
 
-module.exports = { sendMessage, sendFileToNumber, assignToTeam, sendTemplate, notifyJeff };
+module.exports = { sendMessage, sendFileToNumber, assignToTeam, sendTemplate, notifyJeff, sendDocument };
+
+// ─────────────────────────────────────────────
+// SEND DOCUMENT TO CUSTOMER
+// ─────────────────────────────────────────────
+
+async function sendDocument(waId, fileUrl, filename, caption) {
+  var result = await sendFileToNumber(waId, fileUrl, filename || 'quote.pdf', caption || '');
+  if (result) {
+    console.log('[WATI] Document sent to ' + waId);
+  } else {
+    console.error('[WATI] sendDocument failed for ' + waId);
+  }
+  return result;
+}

@@ -207,10 +207,12 @@ var GEAR_SEARCH_MAP = {
   'zoom f8':             'Zoom F8n',
   'zoom f8n':            'Zoom F8n',
 // Aputure lights missing from map
-  '300d':           'Aputure 300D',
-  'aputure 300d':   'Aputure 300D',
-  '50d':            'Aputure 50D',
-  'aputure 50d':    'Aputure 50D',
+  '300d':           'Aputure LS 300D',
+  'aputure 300d':   'Aputure LS 300D',
+  '300x':           'Aputure 300X',
+  'aputure 300x':   'Aputure 300X',
+  '50d':            'Aputure STORM 80c',   // 50D not in inventory — map to closest alternative
+  'aputure 50d':    'Aputure STORM 80c',
   // Flags — ambiguous, return multiple
   'flag':           'cutter',
   'cutter':         'cutter',
@@ -279,6 +281,30 @@ function findPinnedProduct(term) {
   }
   return null;
 }
+
+// ─────────────────────────────────────────────
+// PRODUCT ALTERNATIVES MAP
+// When Booqable returns nothing for a customer's request,
+// inject this as a known alternative so Claude never hallucinates
+// ─────────────────────────────────────────────
+
+var PRODUCT_ALTERNATIVES = {
+  '300d':       'We do not have the Aputure 300D in stock — our closest alternatives are: Aputure Nova P300c (RGBWW soft panel, similar output) or Aputure 300X (bi-color). Please check with our team which is available.',
+  'aputure 300d': 'We do not have the Aputure 300D in stock — our closest alternatives are: Aputure Nova P300c (RGBWW soft panel, similar output) or Aputure 300X (bi-color). Please check with our team which is available.',
+  '50d':        'We do not carry the Aputure 50D — our recommended alternative is the Aputure STORM 80c (compact RGBWW monolight, similar output). Please check Booqable for pricing.',
+  'aputure 50d': 'We do not carry the Aputure 50D — our recommended alternative is the Aputure STORM 80c (compact RGBWW monolight, similar output). Please check Booqable for pricing.',
+  'flag':       'For flags, we have: 2x3 Cutter Flag and 4x4 Floppy Flag. Please ask the customer which size/type they need before quoting.',
+  'cutter':     'For flags, we have: 2x3 Cutter Flag and 4x4 Floppy Flag. Please ask the customer which size/type they need before quoting.',
+  'floppy':     'For flags, we have: 2x3 Cutter Flag and 4x4 Floppy Flag. Please ask the customer which size/type they need before quoting.',
+  'diffuser':   'For diffusion, we have 2x3 and 4x4 Diffusion Frames with LEE gels (250/251/216). Please ask the customer which size and diffusion strength they need before quoting.',
+  'diffusion':  'For diffusion, we have 2x3 and 4x4 Diffusion Frames with LEE gels (250/251/216). Please ask the customer which size and diffusion strength they need before quoting.',
+  'lightdome':  'For lightdomes, we have: Aputure Lightdome II (standard), Aputure Lightdome Mini (compact for STORM 80c), and Nanlite Dome 120cm. Please ask the customer which they need.',
+  'light dome': 'For lightdomes, we have: Aputure Lightdome II (standard), Aputure Lightdome Mini (compact for STORM 80c), and Nanlite Dome 120cm. Please ask the customer which they need.',
+  'lantern':    'For lanterns, we have: Aputure Lantern 60cm and Aputure Lantern 90cm. Please ask the customer which size they prefer.',
+  'rock roller': 'We have the Rock N Roller Multi-Cart — please check Booqable for pricing and availability.',
+  'rock n roller': 'We have the Rock N Roller Multi-Cart — please check Booqable for pricing and availability.',
+  'camera cart': 'We have the Rock N Roller Multi-Cart — please check Booqable for pricing and availability.',
+};
 
 // ─────────────────────────────────────────────
 // DATE EXTRACTION
@@ -550,8 +576,6 @@ if (topResults.length > 0) {
       }
     }
 
-    // Also do a whole-message scan
-
     // Also do a whole-message scan for gear keywords not caught line-by-line
     var lowerFull = text.toLowerCase();
     GEAR_KEYWORDS.forEach(function(key) {
@@ -588,10 +612,21 @@ if (topResults.length > 0) {
       return p.name + ' — ' + price + stockMsg + ' | ' + url;
     });
 
-    // Add not-found items
+    // Add not-found items — with alternatives injected where known
     if (notFound.length > 0) {
-      lines.push('[NOT IN CATALOG: ' + notFound.join(', ')
-        + ' — do not quote these. Offer alternatives from inventory or suggest outsourcing.]');
+      notFound.forEach(function(item) {
+        var lower = item.toLowerCase();
+        // Check if we have a known alternative for this item
+        var altKey = Object.keys(PRODUCT_ALTERNATIVES).find(function(k) {
+          return lower.includes(k) || k.includes(lower);
+        });
+        if (altKey) {
+          lines.push('[ALTERNATIVE FOR "' + item + '": ' + PRODUCT_ALTERNATIVES[altKey] + ']');
+        } else {
+          lines.push('[NOT IN CATALOG: ' + item
+            + ' — do not quote this. Offer the closest alternative from inventory or flag to team for sourcing.]');
+        }
+      });
     }
 
     console.log('[Claude] Catalog context — found: ' + foundList.length

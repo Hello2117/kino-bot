@@ -832,8 +832,20 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     }
   }
 
-  // quoteBuilder removed — getCatalogContext (cached catalog) handles all inventory lookups
-  // This eliminates the live Booqable API call per message that was causing timeouts
+  // Catalog context — always runs, uses cached catalog (no API calls, no timeout)
+  var catalogContext = '';
+  lookups.push(
+    Promise.race([
+      getCatalogContext(newUserMessage).then(function(r) {
+        if (r) { catalogContext = r; console.log('[Claude] Catalog context added'); }
+      }).catch(function(e) {
+        console.error('[Claude] getCatalogContext error:', e.message);
+      }),
+      new Promise(function(resolve) {
+        setTimeout(function() { console.warn('[Claude] Catalog context timed out'); resolve(); }, 8000);
+      }),
+    ])
+  );
 
   if (detectsFootageQuery(newUserMessage)) {
     console.log('[Claude] Fetching product page + footage...');
@@ -860,10 +872,12 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
   if (lookups.length > 0) await Promise.all(lookups);
   if (availabilityContext) console.log('[Claude] Availability context added');
   if (pricingContext)      console.log('[Claude] Pricing context added');
+  if (catalogContext)      console.log('[Claude] Catalog context added');
   if (footageContext)      console.log('[Claude] Footage context added');
 
   var extraContext = availabilityContext + (availabilityContext ? '\n' : '')
     + pricingContext + (pricingContext ? '\n' : '')
+    + catalogContext + (catalogContext ? '\n' : '')
     + footageContext;
 
   var userContent;

@@ -18,12 +18,9 @@ var SYSTEM_PROMPT = fs.readFileSync(
 // ─────────────────────────────────────────────
 
 function detectsHandoffTrigger(text) {
+  // Only trigger handoff for explicit escalation phrases
+  // Do NOT trigger for standard enquiries about vehicles, crew, or pricing
   var triggers = [
-    'loop in our team',
-    'team kami handle',
-    'expect a message from us shortly',
-    'kejap lagi ada orang akan reach out',
-    'let me flag that to our team',
     'pass this to jeff',
     'serahkan kepada jeff',
   ];

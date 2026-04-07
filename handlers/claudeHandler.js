@@ -532,7 +532,7 @@ function cleanLine(line) {
       });
       var topResults = isAmbiguous ? results.slice(0, 3) : results.slice(0, 1);
 
-      if (topResults.length > 0) {
+if (topResults.length > 0) {
         topResults.forEach(function(p) {
           if (!found[p.id]) {
             found[p.id] = { product: p, qty: qty };
@@ -540,6 +540,17 @@ function cleanLine(line) {
             found[p.id].qty = Math.max(found[p.id].qty, qty);
           }
         });
+      } else {
+        var looksLikeGear = cleaned.length > 3
+          && !/^(hi|hello|hey|may i|please|can you|could|would)/i.test(cleaned)
+          && !/^(what|how|when|where|is|are|do|does)/i.test(cleaned);
+        if (looksLikeGear && cleaned.length < 60) {
+          notFound.push(cleaned);
+        }
+      }
+    }
+
+    // Also do a whole-message scan
 
     // Also do a whole-message scan for gear keywords not caught line-by-line
     var lowerFull = text.toLowerCase();

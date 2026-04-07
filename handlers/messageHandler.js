@@ -5,7 +5,7 @@ const { sendMessage, assignToTeam, notifyJeff, sendDocument } = require('./watiH
 const { notifyHandoff }                      = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
 const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
-const { generateQuotePDF, countQuoteItems }  = require('../utils/pdfGenerator');
+const { generateQuotePDF }                  = require('../utils/pdfGenerator');
 const { createBooqableOrder }                = require('../utils/booqableOrder');
 const { uploadQuotePDF, buildFilename }      = require('../utils/supabaseStorage');
 const {
@@ -21,7 +21,6 @@ const {
 
 const GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\nI can help you with:\n- Gear recommendations for your shoot\n- Package info and pricing\n- Availability checks\n- Getting you a quote\n\nWhat are you looking for today? / Apa yang you nak hari ni?';
 
-const PDF_ITEM_THRESHOLD = 10;
 
 // ─────────────────────────────────────────────
 // PDF QUOTE SENDER
@@ -30,10 +29,14 @@ const PDF_ITEM_THRESHOLD = 10;
 
 async function maybeSendQuotePDF(waId, reply, name) {
   try {
-    var itemCount = countQuoteItems(reply);
-    if (itemCount <= PDF_ITEM_THRESHOLD) return;
+    // Only generate PDF + Booqable order when form is fully complete
+    var missingFields = await getMissingFields(waId);
+    if (missingFields.length > 0) {
+      console.log('[PDF] Skipping — form incomplete, missing: ' + missingFields.join(', '));
+      return;
+    }
 
-    console.log('[PDF] ' + itemCount + ' items detected — generating quote PDF for ' + waId);
+    console.log('[PDF] Form complete — generating quote PDF for ' + waId);
 
     // Pull form data
     var form      = await getForm(waId).catch(function() { return {}; });

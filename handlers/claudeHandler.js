@@ -4,7 +4,7 @@ const axios     = require('axios');
 const fs        = require('fs');
 const path      = require('path');
 const catalog      = require('../utils/booqableCatalog');
-const quoteBuilder = require('../utils/quoteBuilder');
+// quoteBuilder removed — getCatalogContext uses cached catalog (faster, no timeout)
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -506,14 +506,15 @@ async function getCatalogContext(text) {
     // Helper: extract quantity from a line e.g. "x3", "3x", "x 3 set"
 function parseQty(line) {
   // Handles: x3, 3x, "- 2 units", "2 unit", "x 2"
-  var m = line.match(/x\s*(\d+)|(\d+)\s*x|-\s*(\d+)\s*unit|(\d+)\s*unit/i);
+  // Match qty patterns: x2, 2x, "- 2 units", "2 units" — max 3 digits to avoid matching model numbers like 1200X
+  var m = line.match(/\bx\s*(\d{1,3})\b|\b(\d{1,3})\s*x\b|-\s*(\d{1,3})\s*unit|(\d{1,3})\s*unit/i);
   return m ? parseInt(m[1] || m[2] || m[3] || m[4]) : 1;
 }
 
 function cleanLine(line) {
   return line
     .replace(/^[·•\-\*]\s*/g, '')            // strip bullet chars at start
-    .replace(/x\s*\d+|\d+\s*x/gi, '')        // remove x2, 3x
+    .replace(/\bx\s*\d{1,3}\b|\b\d{1,3}\s*x\b/gi, '') // remove x2, 3x — NOT model suffixes like 1200X
     .replace(/-\s*\d+\s*units?/gi, '')        // remove "- 2 units"
     .replace(/\d+\s*units?/gi, '')            // remove "2 units"
     .replace(/[+\/,;:-]/g, ' ')              // remove punctuation
@@ -831,23 +832,8 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
     }
   }
 
-  // Quote builder — queries Booqable API directly per item (reliable, no fuzzy matching)
-  var inventoryContext = '';
-  lookups.push(
-    Promise.race([
-      quoteBuilder.buildQuoteContext(newUserMessage).then(function(r) {
-        if (r) { inventoryContext = r; console.log('[Claude] Quote context added'); }
-      }).catch(function(e) {
-        console.error('[Claude] quoteBuilder error:', e.message);
-      }),
-      new Promise(function(resolve) {
-        setTimeout(function() {
-          console.warn('[Claude] Quote builder timed out');
-          resolve();
-        }, 15000);
-      }),
-    ])
-  );
+  // quoteBuilder removed — getCatalogContext (cached catalog) handles all inventory lookups
+  // This eliminates the live Booqable API call per message that was causing timeouts
 
   if (detectsFootageQuery(newUserMessage)) {
     console.log('[Claude] Fetching product page + footage...');
@@ -875,11 +861,9 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
   if (availabilityContext) console.log('[Claude] Availability context added');
   if (pricingContext)      console.log('[Claude] Pricing context added');
   if (footageContext)      console.log('[Claude] Footage context added');
-  if (inventoryContext)    console.log('[Claude] Inventory context:\n' + inventoryContext.substring(0, 500));
 
   var extraContext = availabilityContext + (availabilityContext ? '\n' : '')
     + pricingContext + (pricingContext ? '\n' : '')
-    + inventoryContext + (inventoryContext ? '\n' : '')
     + footageContext;
 
   var userContent;

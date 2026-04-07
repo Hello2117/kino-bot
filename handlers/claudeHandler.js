@@ -18,14 +18,9 @@ var SYSTEM_PROMPT = fs.readFileSync(
 // ─────────────────────────────────────────────
 
 function detectsHandoffTrigger(text) {
-  // Only trigger handoff for explicit escalation phrases
-  // Do NOT trigger for standard enquiries about vehicles, crew, or pricing
-  var triggers = [
-    'pass this to jeff',
-    'serahkan kepada jeff',
-  ];
-  var lower = text.toLowerCase();
-  return triggers.some(function(t) { return lower.includes(t); });
+  // Handoff disabled — Kino always stays active regardless of content
+  // Jeff is notified separately for documents, but Kino never locks the session
+  return false;
 }
 
 // ─────────────────────────────────────────────

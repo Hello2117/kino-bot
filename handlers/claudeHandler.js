@@ -289,21 +289,21 @@ function findPinnedProduct(term) {
 // ─────────────────────────────────────────────
 
 var PRODUCT_ALTERNATIVES = {
-  '300d':       'We do not have the Aputure 300D in stock — our closest alternatives are: Aputure Nova P300c (RGBWW soft panel, similar output) or Aputure 300X (bi-color). Please check with our team which is available.',
-  'aputure 300d': 'We do not have the Aputure 300D in stock — our closest alternatives are: Aputure Nova P300c (RGBWW soft panel, similar output) or Aputure 300X (bi-color). Please check with our team which is available.',
-  '50d':        'We do not carry the Aputure 50D — our recommended alternative is the Aputure STORM 80c (compact RGBWW monolight, similar output). Please check Booqable for pricing.',
-  'aputure 50d': 'We do not carry the Aputure 50D — our recommended alternative is the Aputure STORM 80c (compact RGBWW monolight, similar output). Please check Booqable for pricing.',
-  'flag':       'For flags, we have: 2x3 Cutter Flag and 4x4 Floppy Flag. Please ask the customer which size/type they need before quoting.',
-  'cutter':     'For flags, we have: 2x3 Cutter Flag and 4x4 Floppy Flag. Please ask the customer which size/type they need before quoting.',
-  'floppy':     'For flags, we have: 2x3 Cutter Flag and 4x4 Floppy Flag. Please ask the customer which size/type they need before quoting.',
-  'diffuser':   'For diffusion, we have 2x3 and 4x4 Diffusion Frames with LEE gels (250/251/216). Please ask the customer which size and diffusion strength they need before quoting.',
-  'diffusion':  'For diffusion, we have 2x3 and 4x4 Diffusion Frames with LEE gels (250/251/216). Please ask the customer which size and diffusion strength they need before quoting.',
-  'lightdome':  'For lightdomes, we have: Aputure Lightdome II (standard), Aputure Lightdome Mini (compact for STORM 80c), and Nanlite Dome 120cm. Please ask the customer which they need.',
-  'light dome': 'For lightdomes, we have: Aputure Lightdome II (standard), Aputure Lightdome Mini (compact for STORM 80c), and Nanlite Dome 120cm. Please ask the customer which they need.',
-  'lantern':    'For lanterns, we have: Aputure Lantern 60cm and Aputure Lantern 90cm. Please ask the customer which size they prefer.',
-  'rock roller': 'We have the Rock N Roller Multi-Cart — please check Booqable for pricing and availability.',
-  'rock n roller': 'We have the Rock N Roller Multi-Cart — please check Booqable for pricing and availability.',
-  'camera cart': 'We have the Rock N Roller Multi-Cart — please check Booqable for pricing and availability.',
+  '300d':         'The Aputure 300D Mark II is not currently in our catalog. We have the Aputure Nova P300c (RGBWW soft panel, similar output) and the Aputure 300X (bi-color) as alternatives.',
+  'aputure 300d': 'The Aputure 300D Mark II is not currently in our catalog. We have the Aputure Nova P300c (RGBWW soft panel, similar output) and the Aputure 300X (bi-color) as alternatives.',
+  '50d':          'We do not carry the Aputure 50D — the Aputure STORM 80c is our direct alternative, same compact form factor with RGBWW colour.',
+  'aputure 50d':  'We do not carry the Aputure 50D — the Aputure STORM 80c is our direct alternative, same compact form factor with RGBWW colour.',
+  'flag':         'For flags, we have the 2x3 Cutter Flag and the 4x4 Floppy Flag. Which size do you need — or would you like a set of both?',
+  'cutter':       'For flags, we have the 2x3 Cutter Flag and the 4x4 Floppy Flag. Which size do you need — or would you like a set of both?',
+  'floppy':       'For flags, we have the 2x3 Cutter Flag and the 4x4 Floppy Flag. Which size do you need?',
+  'diffuser':     'For diffusion, we have 2x3 and 4x4 Diffusion Frames with LEE gels — available in 250 (light), 251 (medium), or 216 (heavy/white). Which size and strength do you need?',
+  'diffusion':    'For diffusion, we have 2x3 and 4x4 Diffusion Frames with LEE gels — available in 250 (light), 251 (medium), or 216 (heavy/white). Which size and strength do you need?',
+  'lightdome':    'For lightdomes, we have the Aputure Lightdome II (standard), Aputure Lightdome Mini (compact, suits STORM 80c), and Nanlite Dome 120cm. Which light head is it for?',
+  'light dome':   'For lightdomes, we have the Aputure Lightdome II (standard), Aputure Lightdome Mini (compact, suits STORM 80c), and Nanlite Dome 120cm. Which light head is it for?',
+  'lantern':      'For lanterns, we have the Aputure Lantern 60cm and Aputure Lantern 90cm — both give 360° soft light. Which size do you prefer?',
+  'rock roller':  'We have the Rock N Roller Multi-Cart available.',
+  'rock n roller':'We have the Rock N Roller Multi-Cart available.',
+  'camera cart':  'We have the Rock N Roller Multi-Cart available.',
 };
 
 // ─────────────────────────────────────────────
@@ -621,10 +621,9 @@ if (topResults.length > 0) {
           return lower.includes(k) || k.includes(lower);
         });
         if (altKey) {
-          lines.push('[ALTERNATIVE FOR "' + item + '": ' + PRODUCT_ALTERNATIVES[altKey] + ']');
+          lines.push('[USE THIS RESPONSE FOR "' + item + '": ' + PRODUCT_ALTERNATIVES[altKey] + ']');
         } else {
-          lines.push('[NOT IN CATALOG: ' + item
-            + ' — do not quote this. Offer the closest alternative from inventory or flag to team for sourcing.]');
+          lines.push('[NOT IN CATALOG: "' + item + '" — offer the closest alternative from our inventory or flag to team for sourcing. Do not say this item does not exist without first checking our full range.]');
         }
       });
     }

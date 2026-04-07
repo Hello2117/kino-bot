@@ -617,12 +617,10 @@ if (topResults.length > 0) {
       var url      = catalog.getProductUrl(p);
       var stockMsg = '';
 
+      // Only flag when customer requests more than we have — never show stock count otherwise
       if (stock > 0 && qty > stock) {
-        stockMsg = ' [STOCK WARNING: ' + qty + ' requested, only ' + stock
-          + ' in stock — tell customer we can supply ' + stock
-          + ' and suggest sourcing remaining ' + (qty - stock) + ' from another rental house]';
-      } else if (stock > 0) {
-        stockMsg = ' [stock: ' + stock + ']';
+        stockMsg = ' [STOCK WARNING: customer needs ' + qty + ', we have ' + stock
+          + ' — inform customer of available quantity and offer to check sourcing for the rest]';
       }
 
       return p.name + ' — ' + price + stockMsg + ' | ' + url;

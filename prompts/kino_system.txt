@@ -792,9 +792,9 @@ TUBES / ACCENTS:
 - Aputure Accent B7C RGBWW — individual LED bulb for practicals
 
 FRESNELS / HMI (large production):
-- ARRI Skypanel X21 — premium soft LED panel, broadcast/cinema standard
+- ARRI Skypanel X21 — premium soft LED panel, broadcast/cinema standard (Booqable: "ARRI Skypanel X21")
 - Aputure Nova P300c — large panel for daylight/tungsten studio work
-- ARRI M90 HMI — 9000W HMI fresnel, large-scale outdoor productions
+- ARRI M90 HMI — 9000W HMI fresnel, large-scale outdoor productions (Booqable: "ARRI M90 9K HMI High-Speed Kit")
 - ARRI 18K HMI — 18,000W HMI, biggest output, full film productions
 
 INDUSTRY-STANDARD RECOMMENDATIONS BY SHOOT TYPE:
@@ -1713,9 +1713,9 @@ TUBES / ACCENTS:
 - Aputure Accent B7C RGBWW — individual LED bulb for practicals
 
 FRESNELS / HMI (large production):
-- ARRI Skypanel X21 — premium soft LED panel, broadcast/cinema standard
+- ARRI Skypanel X21 — premium soft LED panel, broadcast/cinema standard (Booqable: "ARRI Skypanel X21")
 - Aputure Nova P300c — large panel for daylight/tungsten studio work
-- ARRI M90 HMI — 9000W HMI fresnel, large-scale outdoor productions
+- ARRI M90 HMI — 9000W HMI fresnel, large-scale outdoor productions (Booqable: "ARRI M90 9K HMI High-Speed Kit")
 - ARRI 18K HMI — 18,000W HMI, biggest output, full film productions
 
 INDUSTRY-STANDARD RECOMMENDATIONS BY SHOOT TYPE:

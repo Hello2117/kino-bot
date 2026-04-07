@@ -178,6 +178,19 @@ var GEAR_SEARCH_MAP = {
 
   // Audio typos
   'sennheiser ew100': 'Sennheiser EW',
+
+  // ARRI — customer shorthand → exact Booqable names
+  'arri m90':      'ARRI M90 9K HMI High-Speed Kit',
+  'm90':           'ARRI M90 9K HMI High-Speed Kit',
+  'x23 frame':     'ARRI Skypanel X23 Bracket',
+  'x23':           'ARRI Skypanel X23 Bracket',
+  'skypanel':      'ARRI Skypanel X21',
+  'skypanel x21':  'ARRI Skypanel X21',
+  'skypanel 120':  'ARRI Skypanel X21',
+  'wcu-4':         'ARRI WCU 4',
+  'wcu 4':         'ARRI WCU 4',
+  'wcu4':          'ARRI WCU 4',
+  'cforce':        'ARRI WCU 4',
 };
 
 // ─────────────────────────────────────────────

@@ -1,10 +1,12 @@
 // handlers/messageHandler.js
 const { askKino }                            = require('./claudeHandler');
 const { createCustomer }                     = require('../utils/booqableCustomer');
-const { sendMessage, assignToTeam, notifyJeff } = require('./watiHandler');
+const { sendMessage, assignToTeam, notifyJeff, sendDocument } = require('./watiHandler');
 const { notifyHandoff }                      = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
 const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
+const { generateQuotePDF, countQuoteItems }  = require('../utils/pdfGenerator');
+const { uploadQuotePDF, buildFilename }      = require('../utils/supabaseStorage');
 const {
   getSession,
   addMessage,
@@ -13,9 +15,48 @@ const {
   updateForm,
   getMissingFields,
   formatFormSummary,
+  getForm,
 } = require('../utils/sessionStore');
 
 const GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\nI can help you with:\n- Gear recommendations for your shoot\n- Package info and pricing\n- Availability checks\n- Getting you a quote\n\nWhat are you looking for today? / Apa yang you nak hari ni?';
+
+const PDF_ITEM_THRESHOLD = 10;
+
+// ─────────────────────────────────────────────
+// PDF QUOTE SENDER
+// Fires when KINO's reply contains >10 equipment line items
+// ─────────────────────────────────────────────
+
+async function maybeSendQuotePDF(waId, reply, name) {
+  try {
+    var itemCount = countQuoteItems(reply);
+    if (itemCount <= PDF_ITEM_THRESHOLD) return;
+
+    console.log('[PDF] ' + itemCount + ' items detected — generating quote PDF for ' + waId);
+
+    // Pull form data for customer/job name
+    var form       = await getForm(waId).catch(function() { return {}; });
+    var custName   = (form && form.invoiceDetails && form.invoiceDetails.name) || name || 'Customer';
+    var jobName    = (form && form.jobName) || 'Quote';
+    var shootDate  = (form && form.shootingDate) || null;
+
+    var pdfBuffer  = await generateQuotePDF(reply, custName, jobName, shootDate);
+    var filename   = buildFilename(waId, jobName);
+    var publicUrl  = await uploadQuotePDF(pdfBuffer, filename);
+
+    var caption = 'Your quote from TWENTYONESEVENTEEN — ' + jobName + '. Full pricing breakdown inside.';
+    await sendDocument(waId, publicUrl, 'Quote_2117.pdf', caption);
+
+    console.log('[PDF] Sent to ' + waId + ' | URL: ' + publicUrl);
+  } catch (err) {
+    console.error('[PDF] maybeSendQuotePDF error:', err.message);
+    // Non-fatal — KINO's text reply was already sent, PDF is a bonus
+  }
+}
+
+// ─────────────────────────────────────────────
+// MAIN HANDLER
+// ─────────────────────────────────────────────
 
 async function handleIncomingMessage(waId, text, name, imageUrl) {
   if (name === undefined) name = 'Customer';
@@ -34,7 +75,7 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   var greetingTriggers = ['hi', 'hello', 'hey', 'start', 'mula', 'hai', 'alo', 'helo'];
   var isGreeting = greetingTriggers.some(function(g) { return lower === g; });
 
-  // ── Returning customer — has history, don't restart ────────────────────
+  // ── Returning customer ─────────────────────────────────────────────────
   if (history.length > 0 && isGreeting) {
     console.log('[KINO] Returning customer ' + waId + ' — continuing from history');
     var returningContext = trimmedText
@@ -66,10 +107,13 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     await addMessage(waId, 'assistant', reply);
     await sendMessage(waId, reply);
 
+    // PDF trigger
+    await maybeSendQuotePDF(waId, reply, name);
+
     var updatedMissing2 = await getMissingFields(waId);
     if (updatedMissing2.length === 0) {
       var form2 = await getForm(waId);
-      if (form2.invoiceDetails && !form2.booqableCustomerId) {
+      if (form2 && form2.invoiceDetails && !form2.booqableCustomerId) {
         createCustomer(form2.invoiceDetails, form2.invoiceType).then(function(result) {
           if (result && result.customer) {
             console.log('[Booqable] Customer registered: ' + result.customer.id + ' — ' + result.customer.name);
@@ -113,8 +157,8 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     extractFormFields(trimmedText, history),
   ]);
 
-  var kinoResult     = results[0];
-  var semanticResult = results[1];
+  var kinoResult       = results[0];
+  var semanticResult   = results[1];
   var reply            = kinoResult.reply;
   var handoffTriggered = kinoResult.handoffTriggered;
 
@@ -129,6 +173,11 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   await addMessage(waId, 'user', trimmedText);
   await addMessage(waId, 'assistant', reply);
   await sendMessage(waId, reply);
+
+  // PDF trigger — runs async, non-blocking
+  maybeSendQuotePDF(waId, reply, name).catch(function(e) {
+    console.error('[PDF] Async trigger error:', e.message);
+  });
 
   if (handoffTriggered) {
     console.log('[KINO] Handoff triggered for ' + waId);

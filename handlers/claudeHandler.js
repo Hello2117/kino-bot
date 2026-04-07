@@ -130,6 +130,14 @@ var GEAR_KEYWORDS = [
   'sennheiser', 'sennheiser ew100', 'sennheiser ew112',
   'rode', 'dpa', 'lectrosonics',
   'sound devices', 'mixpre',
+  // Lighting accessories
+  '300d', 'aputure 300d',
+  '50d', 'aputure 50d',
+  'flag', 'cutter', 'floppy',
+  'diffuser', 'diffusion',
+  'lightdome', 'light dome',
+  'lantern',
+  'rock roller', 'rock n roller', 'camera cart',
 ];
 
 var GEAR_SEARCH_MAP = {
@@ -198,6 +206,27 @@ var GEAR_SEARCH_MAP = {
   'sennheiser ew100':    'Sennheiser EW100',
   'zoom f8':             'Zoom F8n',
   'zoom f8n':            'Zoom F8n',
+// Aputure lights missing from map
+  '300d':           'Aputure 300D',
+  'aputure 300d':   'Aputure 300D',
+  '50d':            'Aputure 50D',
+  'aputure 50d':    'Aputure 50D',
+  // Flags — ambiguous, return multiple
+  'flag':           'cutter',
+  'cutter':         'cutter',
+  'floppy':         'floppy',
+  // Diffusion — ambiguous, return multiple
+  'diffuser':       'frame',
+  'diffusion':      'LEE diffusion',
+  // Lightdomes — ambiguous, return multiple
+  'lightdome':      'Lightdome',
+  'light dome':     'Lightdome',
+  // Lanterns — ambiguous, return multiple
+  'lantern':        'Aputure Lantern',
+  // Cart
+  'rock roller':    'Rock N Roller',
+  'rock n roller':  'Rock N Roller',
+  'camera cart':    'cart',
 };
 
 // ─────────────────────────────────────────────
@@ -495,24 +524,22 @@ function cleanLine(line) {
 
       console.log('[Catalog] Results for "' + (mappedTerm || cleaned) + '":', results.length > 0 ? results.slice(0,2).map(function(r){return r.name+'('+r.price+')'}).join(', ') : 'NONE');
 
-      if (results.length > 0) {
-        var p = results[0];
-        if (!found[p.id]) {
-          found[p.id] = { product: p, qty: qty };
-        } else {
-          // Already found — accumulate qty from duplicate lines
-          found[p.id].qty = Math.max(found[p.id].qty, qty);
-        }
-      } else {
-        // Only flag as not found if line looks like a product (not a greeting/question)
-        var looksLikeGear = cleaned.length > 3
-          && !/^(hi|hello|hey|may i|please|can you|could|would)/i.test(cleaned)
-          && !/^(what|how|when|where|is|are|do|does)/i.test(cleaned);
-        if (looksLikeGear && cleaned.length < 60) {
-          notFound.push(cleaned);
-        }
-      }
-    }
+   // Ambiguous terms — show top 3 so Claude presents options to customer
+      var AMBIGUOUS_TERMS = ['flag', 'cutter', 'floppy', 'diffuser', 'diffusion',
+        'frame', 'lightdome', 'light dome', 'lantern'];
+      var isAmbiguous = AMBIGUOUS_TERMS.some(function(a) {
+        return lower.includes(a) || (mappedTerm && mappedTerm.toLowerCase().includes(a));
+      });
+      var topResults = isAmbiguous ? results.slice(0, 3) : results.slice(0, 1);
+
+      if (topResults.length > 0) {
+        topResults.forEach(function(p) {
+          if (!found[p.id]) {
+            found[p.id] = { product: p, qty: qty };
+          } else {
+            found[p.id].qty = Math.max(found[p.id].qty, qty);
+          }
+        });
 
     // Also do a whole-message scan for gear keywords not caught line-by-line
     var lowerFull = text.toLowerCase();

@@ -33,9 +33,18 @@ const GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\
 
 async function maybeSendQuotePDF(waId, reply, name) {
   try {
+    // Prevent duplicate sends within same response cycle
+    if (pdfInFlight.has(waId)) {
+      console.log('[PDF] Skipping — already generating for', waId);
+      return;
+    }
+    pdfInFlight.add(waId);
+    setTimeout(function() { pdfInFlight.delete(waId); }, 30000); // clear after 30s
+
     // Only generate PDF + Booqable order when form is fully complete
     var missingFields = await getMissingFields(waId);
     if (missingFields.length > 0) {
+      pdfInFlight.delete(waId);
       console.log('[PDF] Skipping — form incomplete, missing: ' + missingFields.join(', '));
       return;
     }
@@ -74,15 +83,21 @@ async function maybeSendQuotePDF(waId, reply, name) {
     await markQuoteSent(waId);
     if (orderNumber) await storeOrderNumber(waId, orderNumber);
 
-    // Ask for PIC right after quote is sent (part C of requirement)
-    setTimeout(async function() {
-      var form    = await getForm(waId).catch(function() { return {}; });
-      var jobName = (form && form.jobName) || 'your shoot';
-      var name    = (form && form.invoiceDetails && (form.invoiceDetails.name || form.invoiceDetails.contactPerson)) || null;
-      var picMsg  = 'Also' + (name ? ', ' + name.split(' ')[0] : '') + ' — who will be coming in to collect the gear for *' + jobName + '*? Just so we can have everything ready for them.';
-      await sendMessage(waId, picMsg).catch(function(e) { console.error('[PDF] PIC prompt error:', e.message); });
-    }, 3000);
+    // Ask for PIC right after quote is sent — only once (skip if already provided)
+    var picForm = await getForm(waId).catch(function() { return {}; });
+    if (!picForm.picName && !picForm.picWaId) {
+      setTimeout(async function() {
+        try {
+          var form2   = await getForm(waId).catch(function() { return {}; });
+          var jName   = (form2 && form2.jobName) || 'your shoot';
+          var cName   = (form2 && form2.invoiceDetails && (form2.invoiceDetails.name || form2.invoiceDetails.contactPerson)) || null;
+          var picMsg  = 'Also' + (cName ? ', ' + cName.split(' ')[0] : '') + ' — who will be coming in to collect the gear for *' + jName + '*? Just so we can have everything ready for them.';
+          await sendMessage(waId, picMsg);
+        } catch(e) { console.error('[PDF] PIC prompt error:', e.message); }
+      }, 3000);
+    }
   } catch (err) {
+    pdfInFlight.delete(waId);
     console.error('[PDF] maybeSendQuotePDF error:', err.message);
   }
 }

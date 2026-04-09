@@ -262,6 +262,7 @@ Example for 8x tripods:
 All 8 units covered."
 
 NEVER recommend Ronford F7 as a tripod — it is a tripod head only, not a full tripod set.
+NEVER suggest Low Leg or Hi Hat as separate add-ons when a Teris tripod set is already in the quote — they are included.
 NEVER recommend Manfrotto Element for cinema camera or multi-camera setups.
 NEVER commit to more units than available stock per model.
 OConnor Tripod Plate is an accessory — never recommend it as a tripod.
@@ -729,6 +730,8 @@ FOCUS SYSTEMS:
 
 CAMERA SUPPORT (Creator Ready):
 - Teris 100mm Tripod System: 1x Teris V12T Plus-Q Tripod, 1x Teris 100mm Low Leg, 1x Teris 100mm Hi Hat
+
+NOTE: Low Leg and Hi Hat are always included as part of the Teris tripod system. Never suggest them as additional items.
 
 BATTERIES (Commercial Pro):
 - 8x SWIT 140Wh V-Mount, 4x SWIT 210Wh V-Mount
@@ -1183,6 +1186,7 @@ Example for 8x tripods:
 All 8 units covered."
 
 NEVER recommend Ronford F7 as a tripod — it is a tripod head only, not a full tripod set.
+NEVER suggest Low Leg or Hi Hat as separate add-ons when a Teris tripod set is already in the quote — they are included.
 NEVER recommend Manfrotto Element for cinema camera or multi-camera setups.
 NEVER commit to more units than available stock per model.
 OConnor Tripod Plate is an accessory — never recommend it as a tripod.
@@ -1650,6 +1654,8 @@ FOCUS SYSTEMS:
 
 CAMERA SUPPORT (Creator Ready):
 - Teris 100mm Tripod System: 1x Teris V12T Plus-Q Tripod, 1x Teris 100mm Low Leg, 1x Teris 100mm Hi Hat
+
+NOTE: Low Leg and Hi Hat are always included as part of the Teris tripod system. Never suggest them as additional items.
 
 BATTERIES (Commercial Pro):
 - 8x SWIT 140Wh V-Mount, 4x SWIT 210Wh V-Mount

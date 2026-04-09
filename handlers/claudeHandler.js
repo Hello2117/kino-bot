@@ -95,6 +95,8 @@ var GEAR_KEYWORDS = [
   // RED
   'red v-raptor', 'v-raptor', 'raptor',
   'red komodo', 'komodo',
+  // Phantom
+  'phantom', 'phantom flex', 'phantom veo', 'high speed', 'slow mo', 'slow motion', 'slow-mo',
   // Lenses
   'signature prime', 'arri signature',
   'atlas orion', 'atlas mercury',
@@ -148,6 +150,15 @@ var GEAR_KEYWORDS = [
 var GEAR_SEARCH_MAP = {
   // TYPOS / ALIASES only — exact product names are found directly via searchCatalog
   // Only add entries here when the customer term is FUNDAMENTALLY different from the Booqable name
+
+  // Phantom — high speed cameras
+  'phantom':        'Phantom',
+  'phantom flex':   'Phantom Flex 2K',
+  'phantom veo':    'Phantom VEO 4K',
+  'high speed':     'Phantom',
+  'slow mo':        'Phantom',
+  'slow motion':    'Phantom',
+  'slow-mo':        'Phantom',
 
   // Camera typos/aliases
   'a7siii':        'Sony A7S III',
@@ -516,7 +527,8 @@ function cleanLine(line) {
 
    // Ambiguous terms — show top 3 so Claude presents options to customer
       var AMBIGUOUS_TERMS = ['flag', 'cutter', 'floppy', 'diffuser', 'diffusion',
-        'frame', 'lightdome', 'light dome', 'lantern', 'rock n roller', 'rock roller', 'camera cart'];
+        'frame', 'lightdome', 'light dome', 'lantern', 'rock n roller', 'rock roller', 'camera cart',
+        'phantom', 'high speed', 'slow mo', 'slow motion', 'slow-mo'];
       var isAmbiguous = AMBIGUOUS_TERMS.some(function(a) {
         return lower.includes(a) || (mappedTerm && mappedTerm.toLowerCase().includes(a));
       });

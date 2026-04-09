@@ -5,6 +5,7 @@ const { sendMessage, notifyJeff } = require('./handlers/watiHandler');
 const { resumeBot, getSessionCount } = require('./utils/sessionStore');
 const { loadCatalog, getCatalogCount, reloadCatalog, getCatalogAge } = require('./utils/booqableCatalog');
 const { transcribeAudio }               = require('./utils/transcriber');
+const { startScheduler }                = require('./utils/scheduler');
 
 const app = express();
 app.use(express.json());
@@ -13,6 +14,9 @@ app.use(express.json());
 loadCatalog().then(function() {
   console.log("[KINO] Catalog loaded: " + getCatalogCount() + " products");
 });
+
+// Start scheduler for follow-ups and reminders
+startScheduler();
 
 // Deduplication cache
 const processed = new Set();

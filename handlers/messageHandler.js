@@ -17,6 +17,9 @@ const {
   getMissingFields,
   formatFormSummary,
   getForm,
+  markQuoteSent,
+  markPICConfirmed,
+  storeOrderNumber,
 } = require('../utils/sessionStore');
 
 const GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\nI can help you with:\n- Gear recommendations for your shoot\n- Package info and pricing\n- Availability checks\n- Getting you a quote\n\nWhat are you looking for today? / Apa yang you nak hari ni?';
@@ -65,6 +68,19 @@ async function maybeSendQuotePDF(waId, reply, name) {
 
     await sendDocument(waId, publicUrl, 'Quote_2117_' + (orderNumber || 'draft') + '.pdf', caption);
     console.log('[PDF] Sent to ' + waId + ' | Order #' + orderNumber + ' | URL: ' + publicUrl);
+
+    // Stamp quote sent time + store order number for scheduler
+    await markQuoteSent(waId);
+    if (orderNumber) await storeOrderNumber(waId, orderNumber);
+
+    // Ask for PIC right after quote is sent (part C of requirement)
+    setTimeout(async function() {
+      var form    = await getForm(waId).catch(function() { return {}; });
+      var jobName = (form && form.jobName) || 'your shoot';
+      var name    = (form && form.invoiceDetails && (form.invoiceDetails.name || form.invoiceDetails.contactPerson)) || null;
+      var picMsg  = 'Also' + (name ? ', ' + name.split(' ')[0] : '') + ' — who will be coming in to collect the gear for *' + jobName + '*? Just so we can have everything ready for them.';
+      await sendMessage(waId, picMsg).catch(function(e) { console.error('[PDF] PIC prompt error:', e.message); });
+    }, 3000);
   } catch (err) {
     console.error('[PDF] maybeSendQuotePDF error:', err.message);
   }
@@ -156,6 +172,21 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     await addMessage(waId, 'assistant', GREETING);
     await sendMessage(waId, GREETING);
     return;
+  }
+
+  // ── PIC detection — mark confirmed when customer names a person ───────
+  var picKeywords = ['will be', 'collecting is', 'pic is', 'person is', 'coming is',
+    'my name', 'nama saya', 'saya', 'dia', 'he will', 'she will', 'i will collect',
+    'i\'ll collect', 'saya ambil', 'akan ambil'];
+  var lowerText = trimmedText.toLowerCase();
+  var looksLikePIC = picKeywords.some(function(k) { return lowerText.includes(k); })
+    || (trimmedText.length < 60 && /^[A-Z][a-z]/.test(trimmedText.trim()) && trimmedText.split(' ').length <= 5);
+  if (looksLikePIC) {
+    var picForm = await getForm(waId).catch(function() { return {}; });
+    if (picForm && picForm.booqableOrderNumber && !picForm.pic_confirmed) {
+      await markPICConfirmed(waId);
+      console.log('[KINO] PIC confirmed for', waId, ':', trimmedText.substring(0, 40));
+    }
   }
 
   // ── Standard message flow ─────────────────────────────────────────────

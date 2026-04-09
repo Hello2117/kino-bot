@@ -5,41 +5,33 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-// ─────────────────────────────────────────────
-// SUPABASE CLIENT
-// ─────────────────────────────────────────────
-
 var supabase = null;
 
-if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
-  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+var key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+if (process.env.SUPABASE_URL && key) {
+  supabase = createClient(process.env.SUPABASE_URL, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   console.log('[SessionStore] Using Supabase persistent storage');
 } else {
-  console.log('[SessionStore] Supabase not configured — using in-memory storage (sessions will reset on restart)');
+  console.log('[SessionStore] Supabase not configured — using in-memory storage');
 }
 
-// ─────────────────────────────────────────────
-// IN-MEMORY FALLBACK
-// ─────────────────────────────────────────────
-
-var memoryStore = new Map();
-var SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+var memoryStore   = new Map();
+var SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 function emptyForm() {
   return {
-    prepPickupDate:   null,
-    shootingDate:     null,
-    invoiceType:      null,
-    invoiceDetails:   null,
-    jobName:          null,
-    equipmentList:    null,
-    formComplete:     false,
+    prepPickupDate:      null,
+    shootingDate:        null,
+    invoiceType:         null,
+    invoiceDetails:      null,
+    jobName:             null,
+    equipmentList:       null,
+    formComplete:        false,
+    booqableOrderNumber: null,
   };
 }
-
-// ─────────────────────────────────────────────
-// SUPABASE HELPERS
-// ─────────────────────────────────────────────
 
 async function dbGet(waId) {
   if (!supabase) return null;
@@ -51,13 +43,12 @@ async function dbGet(waId) {
       .single();
     if (result.error || !result.data) return null;
     var row = result.data;
-    // Check TTL
     if (Date.now() - new Date(row.updated_at).getTime() > SESSION_TTL_MS) {
       await dbDelete(waId);
       return null;
     }
     return row;
-  } catch (e) {
+  } catch(e) {
     console.error('[SessionStore] dbGet error:', e.message);
     return null;
   }
@@ -73,7 +64,7 @@ async function dbUpsert(waId, messages, form, handedOff) {
       handed_off: handedOff || false,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'wa_id' });
-  } catch (e) {
+  } catch(e) {
     console.error('[SessionStore] dbUpsert error:', e.message);
   }
 }
@@ -82,14 +73,10 @@ async function dbDelete(waId) {
   if (!supabase) return;
   try {
     await supabase.from('kino_sessions').delete().eq('wa_id', waId);
-  } catch (e) {
+  } catch(e) {
     console.error('[SessionStore] dbDelete error:', e.message);
   }
 }
-
-// ─────────────────────────────────────────────
-// MEMORY HELPERS (fallback)
-// ─────────────────────────────────────────────
 
 function memGet(waId) {
   var session = memoryStore.get(waId);
@@ -106,10 +93,6 @@ function memSet(waId, session) {
   memoryStore.set(waId, session);
 }
 
-// ─────────────────────────────────────────────
-// PUBLIC API
-// ─────────────────────────────────────────────
-
 async function getSession(waId) {
   if (supabase) {
     var row = await dbGet(waId);
@@ -123,9 +106,7 @@ async function getSession(waId) {
 async function addMessage(waId, role, content) {
   if (supabase) {
     var row = await dbGet(waId);
-    var messages = [];
-    var form = emptyForm();
-    var handedOff = false;
+    var messages = [], form = emptyForm(), handedOff = false;
     if (row) {
       try { messages = JSON.parse(row.messages) || []; } catch(e) {}
       try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
@@ -155,9 +136,7 @@ async function getForm(waId) {
 async function updateForm(waId, fields) {
   if (supabase) {
     var row = await dbGet(waId);
-    var messages = [];
-    var form = emptyForm();
-    var handedOff = false;
+    var messages = [], form = emptyForm(), handedOff = false;
     if (row) {
       try { messages = JSON.parse(row.messages) || []; } catch(e) {}
       try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
@@ -192,10 +171,9 @@ function isFormComplete(form) {
 }
 
 async function formatFormSummary(waId) {
-  var form = await getForm(waId);
-  var inv = form.invoiceDetails || {};
+  var form    = await getForm(waId);
+  var inv     = form.invoiceDetails || {};
   var missing = await getMissingFields(waId);
-
   var invoiceBlock = form.invoiceType === 'company'
     ? 'Company: ' + (inv.companyName || '-') + '\n' +
       '   Reg No: ' + (inv.registrationNo || '-') + '\n' +
@@ -208,7 +186,6 @@ async function formatFormSummary(waId) {
       '   IC No: ' + (inv.icNumber || '-') + '\n' +
       '   Address: ' + (inv.address || '-') + '\n' +
       '   Email: ' + (inv.email || '-');
-
   return [
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
     'EQUIPMENT RENTAL ENQUIRY FORM',
@@ -227,8 +204,7 @@ async function formatFormSummary(waId) {
 async function markHandedOff(waId) {
   if (supabase) {
     var row = await dbGet(waId);
-    var messages = [];
-    var form = emptyForm();
+    var messages = [], form = emptyForm();
     if (row) {
       try { messages = JSON.parse(row.messages) || []; } catch(e) {}
       try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
@@ -248,14 +224,8 @@ async function isHandedOff(waId) {
         .from('kino_sessions')
         .select('handed_off')
         .eq('wa_id', waId);
-      
       console.log('[SessionStore] isHandedOff check for ' + waId + ':', JSON.stringify(result.data), 'error:', result.error && result.error.message);
-      
-      if (!result.data || result.data.length === 0) {
-        console.log('[SessionStore] No row found — returning false');
-        return false;
-      }
-      
+      if (!result.data || result.data.length === 0) return false;
       var val = result.data[0].handed_off === true;
       console.log('[SessionStore] handed_off value:', val);
       return val;
@@ -271,13 +241,11 @@ async function isHandedOff(waId) {
 async function resumeBot(waId) {
   if (supabase) {
     try {
-      await supabase
-        .from('kino_sessions')
-        .upsert({
-          wa_id:      waId,
-          handed_off: false,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'wa_id' });
+      await supabase.from('kino_sessions').upsert({
+        wa_id:      waId,
+        handed_off: false,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'wa_id' });
       console.log('[SessionStore] Bot resumed for ' + waId);
     } catch(e) {
       console.error('[SessionStore] resumeBot error:', e.message);
@@ -294,8 +262,59 @@ async function clearSession(waId) {
 }
 
 function getSessionCount() {
-  if (supabase) return -1; // Not tracked for Supabase
+  if (supabase) return -1;
   return memoryStore.size;
+}
+
+// ─────────────────────────────────────────────
+// SCHEDULER FUNCTIONS
+// ─────────────────────────────────────────────
+
+async function markQuoteSent(waId) {
+  if (!supabase) return;
+  try {
+    await supabase.from('kino_sessions')
+      .update({
+        quote_sent_at:       new Date().toISOString(),
+        followed_up:         false,
+        collection_reminded: false,
+        return_reminded:     false,
+        updated_at:          new Date().toISOString(),
+      })
+      .eq('wa_id', waId);
+    console.log('[SessionStore] Quote sent timestamp recorded for', waId);
+  } catch(e) {
+    console.error('[SessionStore] markQuoteSent error:', e.message);
+  }
+}
+
+async function markPICConfirmed(waId) {
+  if (!supabase) return;
+  try {
+    await supabase.from('kino_sessions')
+      .update({ pic_confirmed: true, updated_at: new Date().toISOString() })
+      .eq('wa_id', waId);
+  } catch(e) {
+    console.error('[SessionStore] markPICConfirmed error:', e.message);
+  }
+}
+
+async function storeOrderNumber(waId, orderNumber) {
+  if (!supabase) return;
+  try {
+    var row = await dbGet(waId);
+    var form = emptyForm(), messages = [], handedOff = false;
+    if (row) {
+      try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
+      try { messages = JSON.parse(row.messages) || []; } catch(e) {}
+      handedOff = row.handed_off || false;
+    }
+    form.booqableOrderNumber = orderNumber;
+    await dbUpsert(waId, messages, form, handedOff);
+    console.log('[SessionStore] Order number stored: #' + orderNumber + ' for ' + waId);
+  } catch(e) {
+    console.error('[SessionStore] storeOrderNumber error:', e.message);
+  }
 }
 
 module.exports = {
@@ -311,4 +330,7 @@ module.exports = {
   getMissingFields,
   formatFormSummary,
   isFormComplete,
+  markQuoteSent,
+  markPICConfirmed,
+  storeOrderNumber,
 };

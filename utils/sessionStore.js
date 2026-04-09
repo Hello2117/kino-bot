@@ -30,6 +30,8 @@ function emptyForm() {
     equipmentList:       null,
     formComplete:        false,
     booqableOrderNumber: null,
+    picName:             null,
+    picWaId:             null,
   };
 }
 
@@ -317,6 +319,29 @@ async function storeOrderNumber(waId, orderNumber) {
   }
 }
 
+async function storePIC(waId, picName, picWaId) {
+  if (!supabase) return;
+  try {
+    var row = await dbGet(waId);
+    var form = emptyForm(), messages = [], handedOff = false;
+    if (row) {
+      try { form = JSON.parse(row.form) || emptyForm(); } catch(e) {}
+      try { messages = JSON.parse(row.messages) || []; } catch(e) {}
+      handedOff = row.handed_off || false;
+    }
+    if (picName) form.picName  = picName;
+    if (picWaId) form.picWaId  = picWaId;
+    await dbUpsert(waId, messages, form, handedOff);
+    // Also mark pic_confirmed in the scheduler columns
+    await supabase.from('kino_sessions')
+      .update({ pic_confirmed: true, updated_at: new Date().toISOString() })
+      .eq('wa_id', waId);
+    console.log('[SessionStore] PIC stored for ' + waId + ': ' + picName + ' / ' + picWaId);
+  } catch(e) {
+    console.error('[SessionStore] storePIC error:', e.message);
+  }
+}
+
 module.exports = {
   getSession,
   addMessage,
@@ -333,4 +358,5 @@ module.exports = {
   markQuoteSent,
   markPICConfirmed,
   storeOrderNumber,
+  storePIC,
 };

@@ -20,6 +20,7 @@ const {
   markQuoteSent,
   markPICConfirmed,
   storeOrderNumber,
+  storePIC,
 } = require('../utils/sessionStore');
 
 const GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\nI can help you with:\n- Gear recommendations for your shoot\n- Package info and pricing\n- Availability checks\n- Getting you a quote\n\nWhat are you looking for today? / Apa yang you nak hari ni?';
@@ -174,18 +175,37 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     return;
   }
 
-  // ── PIC detection — mark confirmed when customer names a person ───────
-  var picKeywords = ['will be', 'collecting is', 'pic is', 'person is', 'coming is',
-    'my name', 'nama saya', 'saya', 'dia', 'he will', 'she will', 'i will collect',
-    'i\'ll collect', 'saya ambil', 'akan ambil'];
-  var lowerText = trimmedText.toLowerCase();
-  var looksLikePIC = picKeywords.some(function(k) { return lowerText.includes(k); })
-    || (trimmedText.length < 60 && /^[A-Z][a-z]/.test(trimmedText.trim()) && trimmedText.split(' ').length <= 5);
-  if (looksLikePIC) {
-    var picForm = await getForm(waId).catch(function() { return {}; });
-    if (picForm && picForm.booqableOrderNumber && !picForm.pic_confirmed) {
-      await markPICConfirmed(waId);
-      console.log('[KINO] PIC confirmed for', waId, ':', trimmedText.substring(0, 40));
+  // ── PIC detection — extract name and/or WA number ──────────────────
+  var picForm = await getForm(waId).catch(function() { return {}; });
+  if (picForm && picForm.booqableOrderNumber) {
+    var lowerText = trimmedText.toLowerCase();
+
+    // Detect WA number in message — Malaysian format
+    var waNumMatch = trimmedText.match(/(?:\+?60|0)1[0-9][\s\-]?[0-9]{7,8}/);
+    if (waNumMatch) {
+      var rawNum  = waNumMatch[0].replace(/[\s\-]/g, '');
+      var picWaId = rawNum.startsWith('0') ? '6' + rawNum.slice(1) : rawNum.replace(/^\+/, '');
+      await storePIC(waId, picForm.picName || null, picWaId);
+      console.log('[KINO] PIC WA number stored for', waId, ':', picWaId);
+    }
+
+    // Detect PIC name (short reply that looks like a name, after quote was sent)
+    var picKeywords = ['will be', 'collecting is', 'pic is', 'person is', 'coming is',
+      'my name', 'nama saya', 'he will', 'she will', 'i will collect', 'saya ambil'];
+    var looksLikeName = picKeywords.some(function(k) { return lowerText.includes(k); })
+      || (!waNumMatch && trimmedText.length < 50
+          && /^[A-Z][a-z]/.test(trimmedText.trim())
+          && trimmedText.trim().split(' ').length <= 5
+          && picForm.quote_sent_at);
+    if (looksLikeName && !picForm.picName) {
+      // Extract name from message
+      var nameExtract = trimmedText
+        .replace(/will be|collecting is|pic is|person is|coming is|my name is|nama saya/gi, '')
+        .replace(/[,.:]/g, '').trim();
+      if (nameExtract.length > 1) {
+        await storePIC(waId, nameExtract, picForm.picWaId || null);
+        console.log('[KINO] PIC name stored for', waId, ':', nameExtract);
+      }
     }
   }
 

@@ -102,6 +102,22 @@ function msgPICCheck(name, jobName) {
   return 'Also, who will be the person collecting the gear for *' + (jobName || 'this shoot') + '*? Just so we can make sure everything is prepared for them.';
 }
 
+function msgPICCollectionReminder(picName, jobName, collectionDate, orderNumber) {
+  var ref = orderNumber ? ' (Booking #' + orderNumber + ')' : '';
+  return 'Hi ' + (picName || 'there') + ', this is TWENTYONESEVENTEEN. '
+    + 'You have been listed as the person collecting gear for *' + (jobName || 'a shoot') + '*' + ref
+    + ' tomorrow - *' + formatDate(collectionDate) + '*.'
+    + '\n\nCollection is from 10:30am to 5:00pm at our studio. Please ensure payment has been settled before collection.'
+    + '\n\nSee you tomorrow!';
+}
+
+function msgPICReturnReminder(picName, jobName, returnDate, orderNumber) {
+  var ref = orderNumber ? ' (Booking #' + orderNumber + ')' : '';
+  return 'Good morning ' + (picName || 'there') + '! Reminder from TWENTYONESEVENTEEN - gear return for *'
+    + (jobName || 'your shoot') + '*' + ref + ' is due today by *2:00pm*.'
+    + '\n\nReturn window: 10:30am - 2:00pm. See you soon!';
+}
+
 function msgReturnReminder(name, jobName, returnDate, orderNumber) {
   var ref = orderNumber ? ' (Booking #' + orderNumber + ')' : '';
   return 'Good morning ' + (name || 'there') + '! Just a reminder that gear return for *' + (jobName || 'your shoot') + '*' + ref + ' is due today by *2:00pm*.\n\nReturn window: 10:30am — 2:00pm.\n\nPlease let us know if you need any assistance with the return.';
@@ -180,9 +196,16 @@ async function runSchedulerChecks() {
         console.log('[Scheduler] Collection reminder due for', waId);
         await sendMessage(waId, msgCollectionReminder(name, jobName, pickupDate, orderNumber));
 
-        // PIC check only if not already confirmed
+        // Send to PIC directly if we have their number
+        if (form.picWaId && form.picName) {
+          await new Promise(function(r) { setTimeout(r, 2000); });
+          await sendMessage(form.picWaId, msgPICCollectionReminder(form.picName, jobName, pickupDate, orderNumber));
+          console.log('[Scheduler] PIC collection reminder sent to', form.picWaId);
+        }
+
+        // PIC WA check only if not yet confirmed
         if (!session.pic_confirmed) {
-          await new Promise(function(r) { setTimeout(r, 2000); }); // 2s gap
+          await new Promise(function(r) { setTimeout(r, 2000); });
           await sendMessage(waId, msgPICCheck(name, jobName));
         }
 
@@ -196,6 +219,14 @@ async function runSchedulerChecks() {
       if (!session.return_reminded && returnDate && isToday(returnDate) && isMorningWindow()) {
         console.log('[Scheduler] Return reminder due for', waId);
         await sendMessage(waId, msgReturnReminder(name, jobName, returnDate, orderNumber));
+
+        // Send return reminder to PIC directly
+        if (form.picWaId && form.picName) {
+          await new Promise(function(r) { setTimeout(r, 2000); });
+          await sendMessage(form.picWaId, msgPICReturnReminder(form.picName, jobName, returnDate, orderNumber));
+          console.log('[Scheduler] PIC return reminder sent to', form.picWaId);
+        }
+
         await supabase.from('kino_sessions')
           .update({ return_reminded: true, updated_at: new Date().toISOString() })
           .eq('wa_id', waId);

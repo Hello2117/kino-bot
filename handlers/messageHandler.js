@@ -1,8 +1,8 @@
 // handlers/messageHandler.js
-const { askKino }                            = require('./claudeHandler');
+const { askKino, detectsReadyToRent }        = require('./claudeHandler');
 const { createCustomer }                     = require('../utils/booqableCustomer');
 const { sendMessage, assignToTeam, notifyJeff, sendDocument } = require('./watiHandler');
-const { notifyHandoff }                      = require('./notificationHandler');
+const { notifyHandoff, notifyReadyToRent }   = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
 const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
 const { generateQuotePDF }                  = require('../utils/pdfGenerator');
@@ -142,9 +142,14 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
       extractFormFields(trimmedText, history),
     ]);
 
-    var reply            = results[0].reply;
+    var rawReply2        = results[0].reply;
     var handoffTriggered = results[0].handoffTriggered;
     var semanticResult   = results[1];
+    var readyToRent2     = detectsReadyToRent(rawReply2);
+    var reply            = rawReply2
+      .replace(/\[HUMAN_HANDOFF\]/g, '')
+      .replace(/\[READY_TO_RENT\]/g, '')
+      .trim();
 
     if (semanticResult) {
       var formUpdate = mapToFormUpdate(semanticResult);
@@ -169,6 +174,17 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
           }
         }).catch(function(e) { console.error('[Booqable] Customer creation error:', e.message); });
       }
+    }
+
+    if (readyToRent2) {
+      console.log('[KINO] READY_TO_RENT signal for returning customer ' + waId);
+      var rtForm2 = await getForm(waId).catch(function() { return {}; });
+      notifyReadyToRent(
+        waId,
+        name,
+        rtForm2.jobName || null,
+        rtForm2.booqableOrderNumber || null
+      ).catch(function(e) { console.error('[Notify] READY_TO_RENT error:', e.message); });
     }
 
     if (handoffTriggered) {
@@ -239,10 +255,19 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     extractFormFields(trimmedText, history),
   ]);
 
-  var kinoResult       = results[0];
-  var semanticResult   = results[1];
-  var reply            = kinoResult.reply;
-  var handoffTriggered = kinoResult.handoffTriggered;
+  var kinoResult        = results[0];
+  var semanticResult    = results[1];
+  var rawReply          = kinoResult.reply;
+  var handoffTriggered  = kinoResult.handoffTriggered;
+
+  // Detect signals before stripping
+  var readyToRent = detectsReadyToRent(rawReply);
+
+  // Strip signal tags before sending to customer
+  var reply = rawReply
+    .replace(/\[HUMAN_HANDOFF\]/g, '')
+    .replace(/\[READY_TO_RENT\]/g, '')
+    .trim();
 
   if (semanticResult) {
     var formUpdate = mapToFormUpdate(semanticResult);
@@ -260,6 +285,18 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   maybeSendQuotePDF(waId, reply, name).catch(function(e) {
     console.error('[PDF] Async trigger error:', e.message);
   });
+
+  // READY_TO_RENT signal
+  if (readyToRent) {
+    console.log('[KINO] READY_TO_RENT signal for ' + waId);
+    var rtForm = await getForm(waId).catch(function() { return {}; });
+    notifyReadyToRent(
+      waId,
+      name,
+      rtForm.jobName || null,
+      rtForm.booqableOrderNumber || null
+    ).catch(function(e) { console.error('[Notify] READY_TO_RENT error:', e.message); });
+  }
 
   if (handoffTriggered) {
     console.log('[KINO] Handoff triggered for ' + waId);

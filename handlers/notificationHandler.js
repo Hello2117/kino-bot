@@ -1,111 +1,129 @@
 // handlers/notificationHandler.js
-// Notifies the 2117 team when KINO triggers a human handoff.
-// Channels: Console log (always) + optional Telegram or email.
-// Extend this file to add Slack, WhatsApp Business API alerts, etc.
+// Team alerts for KINO events.
+// Channels: Telegram + Jeff WhatsApp
 
 const axios = require('axios');
 const { formatFormSummary } = require('../utils/sessionStore');
 
 // ─────────────────────────────────────────────
-// TELEGRAM NOTIFICATION (optional but recommended)
-// Setup: Create a Telegram bot via @BotFather
-//        Get your chat ID via @userinfobot
-//        Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env
+// TELEGRAM
 // ─────────────────────────────────────────────
 
 async function notifyViaTelegram(message) {
-  const token  = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-
-  if (!token || !chatId) return; // Silently skip if not configured
-
+  var token  = process.env.TELEGRAM_BOT_TOKEN;
+  var chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
   try {
-    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-      chat_id: chatId,
-      text: message,
+    await axios.post('https://api.telegram.org/bot' + token + '/sendMessage', {
+      chat_id:    chatId,
+      text:       message,
       parse_mode: 'HTML',
     });
-  } catch (err) {
+  } catch(err) {
     console.error('[Notify] Telegram error:', err.message);
   }
 }
 
 // ─────────────────────────────────────────────
-// MAIN NOTIFICATION — Handoff Alert
-// Called from messageHandler.js when KINO detects handoff
+// JEFF WHATSAPP
 // ─────────────────────────────────────────────
 
-/**
- * Send a handoff alert to the team.
- * @param {string} waId         - Customer's WhatsApp number
- * @param {string} customerName - Customer's display name
- * @param {string} lastMessage  - The customer's last message (context for team)
- * @param {string} kinoReply    - What KINO said before handing off
- */
+async function notifyJeffWhatsApp(message) {
+  var jeffNumber = process.env.JEFF_WHATSAPP;
+  if (!jeffNumber) return;
+  try {
+    var { sendMessage } = require('./watiHandler');
+    await sendMessage(jeffNumber, message);
+  } catch(err) {
+    console.error('[Notify] Jeff WA error:', err.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// [HUMAN_HANDOFF] SIGNAL
+// Fires when KINO escalates to a human
+// ─────────────────────────────────────────────
+
 async function notifyHandoff(waId, customerName, lastMessage, kinoReply) {
-  const timestamp = new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
-  const watiUrl   = `https://app.wati.io/conversations/${waId}`;
-  const formSummary = formatFormSummary(waId);
+  var timestamp   = new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+  var watiUrl     = 'https://app.wati.io/conversations/' + waId;
+  var formSummary = await formatFormSummary(waId).catch(function() { return ''; });
 
-  const consoleMsg = `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ KINO HANDOFF — Action Required
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Customer : ${customerName}
-WA Number: +${waId}
-Time     : ${timestamp}
-──────────────────────────────────
-Last message : "${lastMessage}"
-KINO replied : "${kinoReply.substring(0, 120)}..."
-──────────────────────────────────
-${formSummary}
-──────────────────────────────────
-Action: Open WATI inbox → assign to yourself → reply
-Link  : ${watiUrl}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+  console.log('\n[HUMAN_HANDOFF] ' + customerName + ' (+' + waId + ') at ' + timestamp);
 
-  console.log(consoleMsg);
-
-  const telegramMsg = `⚡ <b>KINO Handoff — Action Required</b>
-
-👤 <b>Customer:</b> ${customerName}
-📱 <b>WA:</b> +${waId}
-🕐 <b>Time:</b> ${timestamp}
-
-💬 <b>Their message:</b>
-"${lastMessage}"
-
-<pre>${formSummary}</pre>
-
-👉 <a href="${watiUrl}">Open in WATI</a>`;
+  // Telegram
+  var telegramMsg = '🚨 <b>[HUMAN_HANDOFF]</b>\n\n'
+    + '👤 <b>Customer:</b> ' + customerName + '\n'
+    + '📱 <b>WA:</b> +' + waId + '\n'
+    + '🕐 <b>Time:</b> ' + timestamp + '\n\n'
+    + '💬 <b>Their message:</b>\n"' + (lastMessage || '').substring(0, 200) + '"\n\n'
+    + '<pre>' + formSummary + '</pre>\n\n'
+    + '👉 <a href="' + watiUrl + '">Open in WATI</a>';
 
   await notifyViaTelegram(telegramMsg);
+
+  // Jeff WhatsApp
+  var jeffMsg = '[HUMAN_HANDOFF]\n\n'
+    + 'Customer: ' + customerName + '\n'
+    + 'WA: +' + waId + '\n'
+    + 'Time: ' + timestamp + '\n\n'
+    + 'Message: "' + (lastMessage || '').substring(0, 150) + '"\n\n'
+    + 'Open WATI to respond.';
+
+  await notifyJeffWhatsApp(jeffMsg);
 }
 
 // ─────────────────────────────────────────────
-// DAILY SUMMARY (optional — call via cron)
+// [READY_TO_RENT] SIGNAL
+// Fires when customer confirms intent after receiving quote
 // ─────────────────────────────────────────────
 
-/**
- * Send a daily summary of KINO activity.
- * Wire this up to a daily cron job (e.g. node-cron or Railway cron).
- * @param {object} stats - { totalMessages, quotesGenerated, handoffs, activeSessions }
- */
+async function notifyReadyToRent(waId, customerName, jobName, orderNumber) {
+  var timestamp = new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+  var watiUrl   = 'https://app.wati.io/conversations/' + waId;
+  var orderRef  = orderNumber ? ' | Booking #' + orderNumber : '';
+
+  console.log('\n[READY_TO_RENT] ' + customerName + ' (+' + waId + ') — ' + (jobName || 'Unknown Job') + orderRef);
+
+  // Telegram
+  var telegramMsg = '💰 <b>[READY_TO_RENT]</b>\n\n'
+    + '👤 <b>Customer:</b> ' + customerName + '\n'
+    + '📱 <b>WA:</b> +' + waId + '\n'
+    + '🎬 <b>Job:</b> ' + (jobName || 'Unknown') + '\n'
+    + (orderNumber ? '🔖 <b>Booking:</b> #' + orderNumber + '\n' : '')
+    + '🕐 <b>Time:</b> ' + timestamp + '\n\n'
+    + '✅ Customer has confirmed intent to proceed.\n\n'
+    + '👉 <a href="' + watiUrl + '">Open in WATI</a>';
+
+  await notifyViaTelegram(telegramMsg);
+
+  // Jeff WhatsApp
+  var jeffMsg = '[READY_TO_RENT]\n\n'
+    + 'Customer: ' + customerName + '\n'
+    + 'WA: +' + waId + '\n'
+    + 'Job: ' + (jobName || 'Unknown') + '\n'
+    + (orderNumber ? 'Booking: #' + orderNumber + '\n' : '')
+    + 'Time: ' + timestamp + '\n\n'
+    + 'Customer has confirmed — follow up on payment and collection details.';
+
+  await notifyJeffWhatsApp(jeffMsg);
+}
+
+// ─────────────────────────────────────────────
+// DAILY SUMMARY
+// ─────────────────────────────────────────────
+
 async function notifyDailySummary(stats) {
-  const timestamp = new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
-
-  const telegramMsg = `📊 <b>KINO Daily Summary</b>
-🗓 ${timestamp}
-
-💬 Messages handled: ${stats.totalMessages}
-📄 Quotes generated: ${stats.quotesGenerated}
-👥 Handoffs to team: ${stats.handoffs}
-🟢 Active sessions:  ${stats.activeSessions}
-
-— TWENTYONESEVENTEEN 🎬`;
-
+  var timestamp = new Date().toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' });
+  var telegramMsg = '📊 <b>KINO Daily Summary</b>\n'
+    + '🗓 ' + timestamp + '\n\n'
+    + '💬 Messages handled: ' + stats.totalMessages + '\n'
+    + '📄 Quotes generated: ' + stats.quotesGenerated + '\n'
+    + '💰 Ready to rent:    ' + (stats.readyToRent || 0) + '\n'
+    + '👥 Handoffs to team: ' + stats.handoffs + '\n'
+    + '🟢 Active sessions:  ' + stats.activeSessions + '\n\n'
+    + '— TWENTYONESEVENTEEN 🎬';
   await notifyViaTelegram(telegramMsg);
 }
 
-module.exports = { notifyHandoff, notifyDailySummary };
+module.exports = { notifyHandoff, notifyReadyToRent, notifyDailySummary };

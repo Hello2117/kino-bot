@@ -18,9 +18,13 @@ var SYSTEM_PROMPT = fs.readFileSync(
 // ─────────────────────────────────────────────
 
 function detectsHandoffTrigger(text) {
-  // Handoff disabled — Kino always stays active regardless of content
-  // Jeff is notified separately for documents, but Kino never locks the session
-  return false;
+  // Kino embeds [HUMAN_HANDOFF] in its reply when escalating
+  return text.includes('[HUMAN_HANDOFF]');
+}
+
+function detectsReadyToRent(text) {
+  // Kino embeds [READY_TO_RENT] in its reply when customer confirms intent
+  return text.includes('[READY_TO_RENT]');
 }
 
 // ─────────────────────────────────────────────
@@ -873,4 +877,4 @@ async function askKino(conversationHistory, newUserMessage, imageUrl) {
   }
 }
 
-module.exports = { askKino };
+module.exports = { askKino, detectsReadyToRent };

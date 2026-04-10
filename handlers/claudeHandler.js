@@ -18,8 +18,9 @@ var SYSTEM_PROMPT = fs.readFileSync(
 // ─────────────────────────────────────────────
 
 function detectsHandoffTrigger(text) {
-  // Kino embeds [HUMAN_HANDOFF] in its reply when escalating
-  return text.includes('[HUMAN_HANDOFF]');
+  // Handoff silencing disabled — KINO always stays active
+  // [HUMAN_HANDOFF] tag only fires a Jeff notification, KINO keeps responding
+  return false;
 }
 
 function detectsReadyToRent(text) {

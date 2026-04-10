@@ -1,7 +1,7 @@
 // handlers/messageHandler.js
 const { askKino, detectsReadyToRent }        = require('./claudeHandler');
 const { createCustomer }                     = require('../utils/booqableCustomer');
-const { sendMessage, assignToTeam, notifyJeff, sendDocument } = require('./watiHandler');
+const { sendMessage, notifyJeff, sendDocument } = require('./watiHandler');
 const { notifyHandoff, notifyReadyToRent }   = require('./notificationHandler');
 const { extractAndUpdateForm }               = require('../utils/formExtractor');
 const { extractFormFields, mapToFormUpdate } = require('../utils/semanticExtractor');
@@ -11,8 +11,6 @@ const { uploadQuotePDF, buildFilename }      = require('../utils/supabaseStorage
 const {
   getSession,
   addMessage,
-  markHandedOff,
-  isHandedOff,
   updateForm,
   getMissingFields,
   formatFormSummary,
@@ -143,7 +141,7 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     ]);
 
     var rawReply2        = results[0].reply;
-    var handoffTriggered = results[0].handoffTriggered;
+    var handoffTriggered = results[0].handoffTriggered || rawReply2.includes('[HUMAN_HANDOFF]');
     var semanticResult   = results[1];
     var readyToRent2     = detectsReadyToRent(rawReply2);
     var reply            = rawReply2
@@ -187,13 +185,12 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
       ).catch(function(e) { console.error('[Notify] READY_TO_RENT error:', e.message); });
     }
 
-    if (handoffTriggered) {
-      await markHandedOff(waId);
-      await Promise.all([
-        assignToTeam(waId),
-        notifyHandoff(waId, name, trimmedText, reply),
-        notifyJeff(name, waId, trimmedText),
-      ]);
+  // [HUMAN_HANDOFF] — notify Jeff only, KINO keeps responding
+    if (rawReply2.includes('[HUMAN_HANDOFF]')) {
+      console.log('[KINO] HUMAN_HANDOFF signal — notifying Jeff for ' + waId);
+      notifyHandoff(waId, name, trimmedText, reply).catch(function(e) {
+        console.error('[Notify] HUMAN_HANDOFF error:', e.message);
+      });
     }
     return;
   }
@@ -258,7 +255,7 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
   var kinoResult        = results[0];
   var semanticResult    = results[1];
   var rawReply          = kinoResult.reply;
-  var handoffTriggered  = kinoResult.handoffTriggered;
+  var handoffTriggered  = kinoResult.handoffTriggered || rawReply.includes('[HUMAN_HANDOFF]');
 
   // Detect signals before stripping
   var readyToRent = detectsReadyToRent(rawReply);
@@ -298,14 +295,12 @@ async function handleIncomingMessage(waId, text, name, imageUrl) {
     ).catch(function(e) { console.error('[Notify] READY_TO_RENT error:', e.message); });
   }
 
-  if (handoffTriggered) {
-    console.log('[KINO] Handoff triggered for ' + waId);
-    await markHandedOff(waId);
-    await Promise.all([
-      assignToTeam(waId),
-      notifyHandoff(waId, name, trimmedText, reply),
-      notifyJeff(name, waId, trimmedText),
-    ]);
+  // [HUMAN_HANDOFF] — notify Jeff only, KINO keeps responding
+  if (rawReply.includes('[HUMAN_HANDOFF]')) {
+    console.log('[KINO] HUMAN_HANDOFF signal — notifying Jeff for ' + waId);
+    notifyHandoff(waId, name, trimmedText, reply).catch(function(e) {
+      console.error('[Notify] HUMAN_HANDOFF error:', e.message);
+    });
   }
 }
 

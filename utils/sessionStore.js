@@ -17,8 +17,9 @@ if (process.env.SUPABASE_URL && key) {
   console.log('[SessionStore] Supabase not configured — using in-memory storage');
 }
 
-var memoryStore   = new Map();
+var memoryStore    = new Map();
 var SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
 
 function emptyForm() {
   return {

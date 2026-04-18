@@ -3,9 +3,8 @@ const express = require('express');
 const { handleIncomingMessage } = require('./handlers/messageHandler');
 const { sendMessage, notifyJeff } = require('./handlers/watiHandler');
 const { resumeBot, getSessionCount } = require('./utils/sessionStore');
-const { loadCatalog, getCatalogCount, reloadCatalog, getCatalogAge } = require('./utils/booqableCatalog');
+const { loadCatalog, getCatalogCount } = require('./utils/booqableCatalog');
 const { transcribeAudio }               = require('./utils/transcriber');
-const { startScheduler }                = require('./utils/scheduler');
 
 const app = express();
 app.use(express.json());
@@ -14,9 +13,6 @@ app.use(express.json());
 loadCatalog().then(function() {
   console.log("[KINO] Catalog loaded: " + getCatalogCount() + " products");
 });
-
-// Start scheduler for follow-ups and reminders
-startScheduler();
 
 // Deduplication cache
 const processed = new Set();
@@ -31,7 +27,7 @@ app.get('/', (req, res) => {
     status:    'KINO is live',
     channel:   'Meta Cloud API via WATI',
     sessions:  getSessionCount(),
-    catalog:   getCatalogCount() + ' products (refreshed ' + getCatalogAge() + ')',
+    catalog:   getCatalogCount() + ' products',
     uptime:    Math.floor(process.uptime()) + 's',
   });
 });
@@ -92,121 +88,133 @@ function debounceMessage(waId, text, name, imageUrl) {
   }, DEBOUNCE_MS);
 }
 
-app.post('/webhook/wati', async (req, res) => {
-  res.sendStatus(200);
-  try {
-    var body = req.body;
-    console.log('[WATI] eventType:', body.eventType, '| type:', body.type);
-
-    if (body.eventType && body.eventType !== 'message') {
-      console.log('[KINO] Ignoring event:', body.eventType);
-      return;
-    }
-    if (body.owner === true || body.isOwner === true || body.fromMe === true) {
-      console.log('[KINO] Ignoring own outgoing message');
-      return;
-    }
-
-    var waId  = body.waId || body.senderWaId;
-    var name  = body.senderName || body.name || 'Customer';
-    var type  = body.type || (body.message && body.message.type);
-    var msgId = body.id || body.messageId || body.wamid;
-
-    if (!waId) return;
-
-    if (msgId) {
-      if (processed.has(msgId)) {
-        console.log('[KINO] Duplicate ignored:', msgId);
-        return;
-      }
-      processed.add(msgId);
-      setTimeout(function() { processed.delete(msgId); }, 3600000);
-    }
-
-    // ── Text messages — debounced ─────────────────────────────────────────
-    if (type === 'text') {
-      var text = extractText(body);
-      if (!text) {
-        console.log('[KINO] Could not extract text:', JSON.stringify(body).substring(0, 200));
-        return;
-      }
-      console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '" (debouncing...)');
-      debounceMessage(waId, text, name, null);
-      return;
-    }
-
-    // ── Image messages — debounced ────────────────────────────────────────
-    if (type === 'image') {
-      console.log('[WATI] Image payload:', JSON.stringify(body).substring(0, 400));
-      var imageUrl = body.data || null;
-      var caption  = body.text || body.caption || '';
-      console.log('[KINO] Image from ' + waId + ' | URL found:', !!imageUrl);
-      debounceMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
-      return;
-    }
-
-    // ── Audio / Voice messages — transcribe then process ────────────────
-    if (type === 'audio' || type === 'voice' || type === 'ptt') {
-      var audioUrl = body.data || body.fileUrl || body.url || null;
-      console.log('[KINO] Voice message from ' + waId + ' | URL found:', !!audioUrl);
-
-      if (!audioUrl) {
-        await sendMessage(waId, "I received a voice message but couldn't access the audio. Could you type that out for me?");
-        return;
-      }
-
-      var transcript = await transcribeAudio(audioUrl);
-
-      if (!transcript) {
-        await sendMessage(waId, "Sorry, I had trouble understanding that voice message. Could you type it out instead?");
-        return;
-      }
-
-      console.log('[KINO] Voice transcript for ' + waId + ': "' + transcript.substring(0, 100) + '"');
-      // Process the transcript as a normal text message
-      await handleIncomingMessage(waId, '[Voice message transcript: ' + transcript + ']', name);
-      return;
-    }
-
-    // ── Document — notify Jeff immediately, no debounce needed ───────────
-    if (type === 'document') {
-      var filename = (body.document && body.document.filename)
-        || body.fileName || body.filename || null;
-      var fileUrl  = body.data || body.fileUrl || body.url || null;
-
-      console.log('[KINO] Document from ' + waId + ' | file:', filename || 'unknown');
-
-      var docReply = 'Thank you for sending your equipment list. '
-        + 'I have forwarded it to our team and they will be in touch with you shortly.';
-      await sendMessage(waId, docReply);
-      await notifyJeff(name, waId, null, fileUrl, filename);
-
-      await handleIncomingMessage(
-        waId,
-        '[Customer sent their equipment list as a document. '
-        + 'You have acknowledged it and forwarded to Jeff. '
-        + 'Continue the conversation — ask if they have any other questions.]',
-        name
-      );
-      return;
-    }
-
-    console.log('[KINO] Unsupported type ignored:', type);
-
-  } catch (err) {
-    console.error('[KINO] Webhook error:', err.message);
+// ── Meta Cloud API Webhook Verification ──────────────────────────────
+app.get('/webhook/whatsapp', function(req, res) {
+  var mode      = req.query['hub.mode'];
+  var token     = req.query['hub.verify_token'];
+  var challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+    console.log('[WA] Webhook verified');
+    return res.status(200).send(challenge);
   }
+  console.warn('[WA] Webhook verification failed');
+  res.sendStatus(403);
 });
 
-// Admin: force catalog reload
-app.post('/admin/reload-catalog', async (req, res) => {
-  if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+// ── Meta Cloud API Webhook Events ─────────────────────────────────────
+app.post('/webhook/whatsapp', async (req, res) => {
+  res.sendStatus(200); // Acknowledge immediately
   try {
-    var count = await reloadCatalog();
-    console.log('[KINO] Catalog force-reloaded: ' + count + ' products');
-    res.json({ success: true, products: count, message: 'Catalog reloaded from Booqable' });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
+    var body = req.body;
+    if (!body.object || body.object !== 'whatsapp_business_account') return;
+
+    var entries = body.entry || [];
+    for (var ei = 0; ei < entries.length; ei++) {
+      var entry   = entries[ei];
+      var changes = entry.changes || [];
+
+      for (var ci = 0; ci < changes.length; ci++) {
+        var change = changes[ci];
+        if (change.field !== 'messages') continue;
+
+        var value    = change.value || {};
+        var messages = value.messages || [];
+        var contacts = value.contacts || [];
+
+        for (var mi = 0; mi < messages.length; mi++) {
+          var msg  = messages[mi];
+          var waId = msg.from;
+          var name = (contacts[0] && contacts[0].profile && contacts[0].profile.name) || 'Customer';
+          var type = msg.type;
+          var msgId = msg.id;
+
+          if (!waId) continue;
+
+          // Deduplication
+          if (msgId) {
+            if (processed.has(msgId)) {
+              console.log('[KINO] Duplicate ignored:', msgId);
+              continue;
+            }
+            processed.add(msgId);
+            setTimeout(function() { processed.delete(msgId); }, 3600000);
+          }
+
+          console.log('[WA] Message from', waId, '| type:', type, '| name:', name);
+
+          // ── Text ───────────────────────────────────────────────────────
+          if (type === 'text') {
+            var text = msg.text && msg.text.body;
+            if (!text) continue;
+            console.log('[KINO] Text from ' + waId + ': "' + text.substring(0, 80) + '" (debouncing...)');
+            debounceMessage(waId, text, name, null);
+            continue;
+          }
+
+          // ── Image ──────────────────────────────────────────────────────
+          if (type === 'image') {
+            var imageMediaId = msg.image && msg.image.id;
+            var caption      = msg.image && msg.image.caption || '';
+            var imageUrl     = imageMediaId
+              ? 'https://graph.facebook.com/' + (process.env.META_API_VERSION || 'v19.0') + '/' + imageMediaId
+              : null;
+            console.log('[KINO] Image from', waId, '| media_id:', imageMediaId);
+            debounceMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
+            continue;
+          }
+
+          // ── Audio / Voice ──────────────────────────────────────────────
+          if (type === 'audio') {
+            var audioMediaId = msg.audio && msg.audio.id;
+            var audioUrl2    = audioMediaId
+              ? 'https://graph.facebook.com/' + (process.env.META_API_VERSION || 'v19.0') + '/' + audioMediaId
+              : null;
+            console.log('[KINO] Audio from', waId, '| media_id:', audioMediaId);
+
+            if (!audioUrl2) {
+              await sendMessage(waId, "I received a voice message but couldn't access the audio. Could you type that out for me?");
+              continue;
+            }
+            var transcript = await transcribeAudio(audioUrl2);
+            if (!transcript) {
+              await sendMessage(waId, "Sorry, I had trouble understanding that voice message. Could you type it out instead?");
+              continue;
+            }
+            console.log('[KINO] Voice transcript for ' + waId + ': "' + transcript.substring(0, 100) + '"');
+            await handleIncomingMessage(waId, '[Voice message transcript: ' + transcript + ']', name);
+            continue;
+          }
+
+          // ── Document ───────────────────────────────────────────────────
+          if (type === 'document') {
+            var docMediaId = msg.document && msg.document.id;
+            var filename   = msg.document && msg.document.filename || null;
+            var docUrl     = docMediaId
+              ? 'https://graph.facebook.com/' + (process.env.META_API_VERSION || 'v19.0') + '/' + docMediaId
+              : null;
+
+            console.log('[KINO] Document from', waId, '| file:', filename || 'unknown');
+
+            var docReply = 'Thank you for sending your equipment list. '
+              + 'I have forwarded it to our team and they will be in touch with you shortly.';
+            await sendMessage(waId, docReply);
+            await notifyJeff(name, waId, null, docUrl, filename);
+            await handleIncomingMessage(
+              waId,
+              '[Customer sent their equipment list as a document. '
+              + 'You have acknowledged it and forwarded to Jeff. '
+              + 'Continue the conversation — ask if they have any other questions.]',
+              name
+            );
+            continue;
+          }
+
+          console.log('[KINO] Unsupported message type ignored:', type);
+        }
+      }
+    }
+  } catch(err) {
+    console.error('[KINO] Webhook error:', err.message);
   }
 });
 

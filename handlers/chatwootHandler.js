@@ -17,6 +17,23 @@ const {
   getSession,
   addMessage,
 } = require('../utils/sessionStore');
+const catalog = require('../utils/booqableCatalog');
+
+// Equipment keywords — trigger rental inventory mode on any channel
+var RENTAL_KEYWORDS = [
+  'camera', 'lens', 'light', 'lighting', 'aputure', 'nanlite', 'godox',
+  'tripod', 'monitor', 'audio', 'mic', 'microphone', 'gimbal',
+  'fx3', 'fx6', 'fx9', 'a7s', 'alexa', 'venice', 'komodo', 'raptor',
+  'sigma', 'zeiss', 'dzofilm', 'sony', 'arri', 'sennheiser', 'rode',
+  'c-stand', 'c stand', 'softbox', 'fresnel', 'diffuser', 'reflector',
+  'rent', 'rental', 'borrow', 'hire', 'equipment', 'gear', 'kit',
+  'pavotube', 'skypanel', 'phantom', '600d', '300d', '1200',
+];
+
+function detectsRentalQuery(text) {
+  var lower = (text || '').toLowerCase();
+  return RENTAL_KEYWORDS.some(function(k) { return lower.includes(k); });
+}
 
 var CHATWOOT_URL        = process.env.CHATWOOT_URL        || 'https://chatwoot-production-48b7.up.railway.app';
 var CHATWOOT_API_TOKEN  = process.env.CHATWOOT_API_TOKEN  || 'vXfm6KsomanSUDxeE2vGy4Kj';
@@ -147,9 +164,32 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
 
   var systemPromptOverride = getSystemPrompt(inboxName);
 
+  // If studio channel AND customer asks about gear — inject rental catalog context
+  var isStudio     = (inboxName || '').toLowerCase().includes('studio');
+  var isRentalQuery = detectsRentalQuery(trimmed);
+  var catalogContext = '';
+
+  if (isRentalQuery) {
+    try {
+      await catalog.ensureCatalogFresh();
+      // Build a combined system prompt with rental knowledge for studio channel
+      if (isStudio && systemPromptOverride) {
+        var kinoSystemPath = require('path').join(__dirname, '../prompts/kino_system.txt');
+        var rentalPrompt   = require('fs').readFileSync(kinoSystemPath, 'utf8');
+        // Append rental system to studio system so KINO has both contexts
+        systemPromptOverride = systemPromptOverride
+          + '\n\n---\nEQUIPMENT RENTAL CONTEXT (use when customer asks about gear):\n'
+          + rentalPrompt;
+        console.log('[Chatwoot] Rental inventory mode activated for studio conv:', conversationId);
+      }
+    } catch(e) {
+      console.warn('[Chatwoot] Rental mode inject error:', e.message);
+    }
+  }
+
   console.log('[Chatwoot] Processing | conv:', conversationId,
-    '| inbox:', inboxName, '| from:', senderName,
-    '| text:', trimmed.substring(0, 60));
+    '| inbox:', inboxName, '| rental mode:', isRentalQuery,
+    '| from:', senderName, '| text:', trimmed.substring(0, 60));
 
   // Ask KINO
   var result      = await askKino(history, trimmed, null, systemPromptOverride);

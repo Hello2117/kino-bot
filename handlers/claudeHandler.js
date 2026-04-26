@@ -885,4 +885,4 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
   }
 }
 
-module.exports = { askKino, detectsReadyToRent };
+module.exports = { askKino, detectsReadyToRent, getCatalogContext };

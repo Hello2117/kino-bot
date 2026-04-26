@@ -25,7 +25,7 @@ const processed = new Set();
 
 // Debounce store
 const debounceStore = new Map();
-const DEBOUNCE_MS = 4000;
+const DEBOUNCE_MS = 5000; // 5s — gives customer time to finish multi-line messages
 
 app.get('/', (req, res) => {
   res.json({

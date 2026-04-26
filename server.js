@@ -1,10 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const { handleIncomingMessage } = require('./handlers/messageHandler');
-const { sendMessage, notifyJeff } = require('./handlers/watiHandler');
+const { sendMessage, notifyJeff, sendDocument } = require('./handlers/whatsappHandler');
 const { resumeBot, getSessionCount } = require('./utils/sessionStore');
-const { loadCatalog, getCatalogCount } = require('./utils/booqableCatalog');
+const { loadCatalog, getCatalogCount, reloadCatalog, getCatalogAge } = require('./utils/booqableCatalog');
 const { transcribeAudio }               = require('./utils/transcriber');
+const { startScheduler }                = require('./utils/scheduler');
+const { processIGWebhook }              = require('./handlers/igMessageHandler');
 
 const app = express();
 app.use(express.json());
@@ -14,20 +16,22 @@ loadCatalog().then(function() {
   console.log("[KINO] Catalog loaded: " + getCatalogCount() + " products");
 });
 
+// Start scheduler for follow-ups and reminders
+startScheduler();
+
 // Deduplication cache
 const processed = new Set();
 
-// Debounce store — holds pending messages per customer
-// Key: waId, Value: { timer, messages: [], name }
+// Debounce store
 const debounceStore = new Map();
-const DEBOUNCE_MS = 4000; // Wait 4 seconds after last message before responding
+const DEBOUNCE_MS = 4000;
 
 app.get('/', (req, res) => {
   res.json({
     status:    'KINO is live',
-    channel:   'Meta Cloud API via WATI',
+    channel:   'Meta Cloud API',
     sessions:  getSessionCount(),
-    catalog:   getCatalogCount() + ' products',
+    catalog:   getCatalogCount() + ' products (refreshed ' + getCatalogAge() + ')',
     uptime:    Math.floor(process.uptime()) + 's',
   });
 });
@@ -36,50 +40,27 @@ function extractText(body) {
   if (body.text && typeof body.text === 'string' && body.text.trim()) {
     return body.text.trim();
   }
-  if (body.contextInfo && body.contextInfo.quotedMessage) {
-    var quoted = body.contextInfo.quotedMessage;
-    if (quoted.conversation) return quoted.conversation.trim();
-    if (quoted.extendedTextMessage && quoted.extendedTextMessage.text) {
-      return quoted.extendedTextMessage.text.trim();
-    }
-  }
-  if (body.replyContextId && body.text) return body.text.trim();
   if (body.message && body.message.text) return body.message.text.trim();
   if (body.message && body.message.conversation) return body.message.conversation.trim();
-  if (body.message && body.message.extendedTextMessage) {
-    return body.message.extendedTextMessage.text.trim();
-  }
   return null;
 }
 
-// Debounced message handler
-// Accumulates messages for DEBOUNCE_MS then fires once with combined text
 function debounceMessage(waId, text, name, imageUrl) {
   var existing = debounceStore.get(waId);
-
   if (existing) {
-    // Cancel previous timer
     clearTimeout(existing.timer);
-    // Append new message to accumulated list
     existing.messages.push(text);
     if (imageUrl) existing.imageUrl = imageUrl;
   } else {
     existing = { messages: [text], name: name, imageUrl: imageUrl };
     debounceStore.set(waId, existing);
   }
-
-  // Set new timer
   existing.timer = setTimeout(async function() {
     debounceStore.delete(waId);
-
-    // Combine all accumulated messages into one
     var combined = existing.messages.join('\n');
-    var msgCount = existing.messages.length;
-
-    if (msgCount > 1) {
-      console.log('[KINO] Debounced ' + msgCount + ' messages from ' + waId + ' into one');
+    if (existing.messages.length > 1) {
+      console.log('[KINO] Debounced ' + existing.messages.length + ' messages from ' + waId);
     }
-
     try {
       await handleIncomingMessage(waId, combined, existing.name, existing.imageUrl);
     } catch(err) {
@@ -103,7 +84,7 @@ app.get('/webhook/whatsapp', function(req, res) {
 
 // ── Meta Cloud API Webhook Events ─────────────────────────────────────
 app.post('/webhook/whatsapp', async (req, res) => {
-  res.sendStatus(200); // Acknowledge immediately
+  res.sendStatus(200);
   try {
     var body = req.body;
     if (!body.object || body.object !== 'whatsapp_business_account') return;
@@ -112,37 +93,31 @@ app.post('/webhook/whatsapp', async (req, res) => {
     for (var ei = 0; ei < entries.length; ei++) {
       var entry   = entries[ei];
       var changes = entry.changes || [];
-
       for (var ci = 0; ci < changes.length; ci++) {
         var change = changes[ci];
         if (change.field !== 'messages') continue;
-
         var value    = change.value || {};
         var messages = value.messages || [];
         var contacts = value.contacts || [];
 
         for (var mi = 0; mi < messages.length; mi++) {
-          var msg  = messages[mi];
-          var waId = msg.from;
-          var name = (contacts[0] && contacts[0].profile && contacts[0].profile.name) || 'Customer';
-          var type = msg.type;
+          var msg   = messages[mi];
+          var waId  = msg.from;
+          var name  = (contacts[0] && contacts[0].profile && contacts[0].profile.name) || 'Customer';
+          var type  = msg.type;
           var msgId = msg.id;
 
           if (!waId) continue;
 
-          // Deduplication
           if (msgId) {
-            if (processed.has(msgId)) {
-              console.log('[KINO] Duplicate ignored:', msgId);
-              continue;
-            }
+            if (processed.has(msgId)) { console.log('[KINO] Duplicate ignored:', msgId); continue; }
             processed.add(msgId);
             setTimeout(function() { processed.delete(msgId); }, 3600000);
           }
 
           console.log('[WA] Message from', waId, '| type:', type, '| name:', name);
 
-          // ── Text ───────────────────────────────────────────────────────
+          // Text
           if (type === 'text') {
             var text = msg.text && msg.text.body;
             if (!text) continue;
@@ -151,28 +126,25 @@ app.post('/webhook/whatsapp', async (req, res) => {
             continue;
           }
 
-          // ── Image ──────────────────────────────────────────────────────
+          // Image
           if (type === 'image') {
             var imageMediaId = msg.image && msg.image.id;
-            var caption      = msg.image && msg.image.caption || '';
+            var caption      = (msg.image && msg.image.caption) || '';
             var imageUrl     = imageMediaId
               ? 'https://graph.facebook.com/' + (process.env.META_API_VERSION || 'v19.0') + '/' + imageMediaId
               : null;
-            console.log('[KINO] Image from', waId, '| media_id:', imageMediaId);
             debounceMessage(waId, caption || '[Image sent by customer]', name, imageUrl);
             continue;
           }
 
-          // ── Audio / Voice ──────────────────────────────────────────────
+          // Audio
           if (type === 'audio') {
             var audioMediaId = msg.audio && msg.audio.id;
             var audioUrl2    = audioMediaId
               ? 'https://graph.facebook.com/' + (process.env.META_API_VERSION || 'v19.0') + '/' + audioMediaId
               : null;
-            console.log('[KINO] Audio from', waId, '| media_id:', audioMediaId);
-
             if (!audioUrl2) {
-              await sendMessage(waId, "I received a voice message but couldn't access the audio. Could you type that out for me?");
+              await sendMessage(waId, "I received a voice message but couldn\'t access the audio. Could you type that out for me?");
               continue;
             }
             var transcript = await transcribeAudio(audioUrl2);
@@ -185,36 +157,63 @@ app.post('/webhook/whatsapp', async (req, res) => {
             continue;
           }
 
-          // ── Document ───────────────────────────────────────────────────
+          // Document
           if (type === 'document') {
             var docMediaId = msg.document && msg.document.id;
-            var filename   = msg.document && msg.document.filename || null;
+            var filename   = (msg.document && msg.document.filename) || null;
             var docUrl     = docMediaId
               ? 'https://graph.facebook.com/' + (process.env.META_API_VERSION || 'v19.0') + '/' + docMediaId
               : null;
-
-            console.log('[KINO] Document from', waId, '| file:', filename || 'unknown');
-
-            var docReply = 'Thank you for sending your equipment list. '
-              + 'I have forwarded it to our team and they will be in touch with you shortly.';
+            var docReply = 'Thank you for sending your equipment list. I have forwarded it to our team and they will be in touch with you shortly.';
             await sendMessage(waId, docReply);
             await notifyJeff(name, waId, null, docUrl, filename);
-            await handleIncomingMessage(
-              waId,
-              '[Customer sent their equipment list as a document. '
-              + 'You have acknowledged it and forwarded to Jeff. '
-              + 'Continue the conversation — ask if they have any other questions.]',
-              name
-            );
+            await handleIncomingMessage(waId,
+              '[Customer sent their equipment list as a document. You have acknowledged it and forwarded to Jeff. Continue the conversation.]',
+              name);
             continue;
           }
 
-          console.log('[KINO] Unsupported message type ignored:', type);
+          console.log('[KINO] Unsupported type ignored:', type);
         }
       }
     }
   } catch(err) {
-    console.error('[KINO] Webhook error:', err.message);
+    console.error('[KINO] WA Webhook error:', err.message);
+  }
+});
+
+// ── Instagram Webhook Verification ───────────────────────────────────
+app.get('/webhook/instagram', function(req, res) {
+  var mode      = req.query['hub.mode'];
+  var token     = req.query['hub.verify_token'];
+  var challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.META_IG_WEBHOOK_VERIFY_TOKEN) {
+    console.log('[IG] Webhook verified');
+    return res.status(200).send(challenge);
+  }
+  console.warn('[IG] Webhook verification failed — token mismatch');
+  res.sendStatus(403);
+});
+
+// ── Instagram Webhook Events ──────────────────────────────────────────
+app.post('/webhook/instagram', function(req, res) {
+  res.sendStatus(200);
+  try {
+    processIGWebhook(req.body);
+  } catch(err) {
+    console.error('[IG] Webhook error:', err.message);
+  }
+});
+
+// Admin: force catalog reload
+app.post('/admin/reload-catalog', async (req, res) => {
+  if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    var count = await reloadCatalog();
+    console.log('[KINO] Catalog force-reloaded: ' + count + ' products');
+    res.json({ success: true, products: count, message: 'Catalog reloaded from Booqable' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -250,9 +249,8 @@ app.get('/admin/stats', (req, res) => {
 var PORT = process.env.PORT || 3000;
 app.listen(PORT, function() {
   console.log('\nKINO is live on port ' + PORT);
-  console.log('WATI webhook : POST /webhook/wati');
-  console.log('Debounce     : ' + DEBOUNCE_MS + 'ms');
-  console.log('Unblock      : GET  /admin/unblock/:waId?secret=xxx');
-  console.log('Resume bot   : POST /admin/resume-bot');
-  console.log('Health check : GET  /\n');
+  console.log('WA webhook  : POST /webhook/whatsapp');
+  console.log('IG webhook  : POST /webhook/instagram');
+  console.log('Debounce    : ' + DEBOUNCE_MS + 'ms');
+  console.log('Health check: GET  /\n');
 });

@@ -112,7 +112,7 @@ async function processIGMessage(igAccountId, senderId, text, senderName) {
 
   // Get sender name if not provided
   if (!senderName || senderName === 'Customer') {
-    var profile  = await getIGUserProfile(senderId);
+    var profile  = await getIGUserProfile(senderId, igAccountId);
     senderName   = (profile && (profile.name || profile.username)) || 'Customer';
   }
 

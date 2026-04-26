@@ -7,8 +7,20 @@ const axios = require('axios');
 var API_VERSION = process.env.META_API_VERSION || 'v19.0';
 var BASE_URL    = 'https://graph.facebook.com/' + API_VERSION;
 
-function getToken() {
-  return process.env.META_ACCESS_TOKEN;
+// Token map — keyed by IG Business Account ID
+var IG_TOKENS = {
+  '17841404595372464': function() { return process.env.META_IG_TOKEN_RENTALS; }, // @2117_rentals
+  '17841472837248429': function() { return process.env.META_IG_TOKEN_STUDIO;  }, // @2117_studio
+};
+
+function getToken(igAccountId) {
+  var tokenFn = igAccountId && IG_TOKENS[igAccountId];
+  if (tokenFn) {
+    var token = tokenFn();
+    if (token) return token;
+  }
+  // Fallback to generic IG token or general Meta token
+  return process.env.META_IG_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
 }
 
 // ─────────────────────────────────────────────
@@ -28,7 +40,7 @@ async function sendIGMessage(igUserId, recipientIgId, message) {
       },
       {
         headers: {
-          'Authorization': 'Bearer ' + getToken(),
+          'Authorization': 'Bearer ' + getToken(igUserId),
           'Content-Type':  'application/json',
         },
         timeout: 15000,
@@ -50,14 +62,14 @@ async function sendIGMessage(igUserId, recipientIgId, message) {
 // Fetches the sender's IG name for personalisation
 // ─────────────────────────────────────────────
 
-async function getIGUserProfile(recipientIgId) {
+async function getIGUserProfile(recipientIgId, igAccountId) {
   try {
     var res = await axios.get(
       BASE_URL + '/' + recipientIgId,
       {
         params: {
           fields:       'name,username',
-          access_token: getToken(),
+          access_token: getToken(igAccountId),
         },
         timeout: 8000,
       }
@@ -83,7 +95,7 @@ async function markAsSeen(igUserId, recipientIgId) {
       },
       {
         headers: {
-          'Authorization': 'Bearer ' + getToken(),
+          'Authorization': 'Bearer ' + getToken(igUserId),
           'Content-Type':  'application/json',
         },
         timeout: 5000,

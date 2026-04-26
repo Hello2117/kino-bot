@@ -796,20 +796,27 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
     }
   }
 
-  // Catalog context — always runs, uses cached catalog (no API calls, no timeout)
+  // Catalog context — only runs when message looks like a gear enquiry
+  // Skip for very short messages (greetings, confirmations) to avoid slow searches
   var catalogContext = '';
-  lookups.push(
-    Promise.race([
-      getCatalogContext(newUserMessage).then(function(r) {
-        if (r) { catalogContext = r; console.log('[Claude] Catalog context added'); }
-      }).catch(function(e) {
-        console.error('[Claude] getCatalogContext error:', e.message);
-      }),
-      new Promise(function(resolve) {
-        setTimeout(function() { console.warn('[Claude] Catalog context timed out'); resolve(); }, 8000);
-      }),
-    ])
-  );
+  var msgLen         = (newUserMessage || '').trim().length;
+  var looksLikeGear  = msgLen > 8
+    && !/^(hi|hello|hey|ok|okay|yes|no|sure|thanks|noted|proceed|confirmed|setuju|boleh|done)$/i.test((newUserMessage || '').trim());
+
+  if (looksLikeGear) {
+    lookups.push(
+      Promise.race([
+        getCatalogContext(newUserMessage).then(function(r) {
+          if (r) { catalogContext = r; console.log('[Claude] Catalog context added'); }
+        }).catch(function(e) {
+          console.error('[Claude] getCatalogContext error:', e.message);
+        }),
+        new Promise(function(resolve) {
+          setTimeout(function() { console.warn('[Claude] Catalog context timed out'); resolve(); }, 15000);
+        }),
+      ])
+    );
+  }
 
   if (detectsFootageQuery(newUserMessage)) {
     console.log('[Claude] Fetching product page + footage...');

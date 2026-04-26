@@ -764,10 +764,10 @@ async function fetchProductPage(customerMessage) {
 // MAIN KINO FUNCTION
 // ─────────────────────────────────────────────
 
-async function askKino(conversationHistory, newUserMessage, imageUrl) {
+async function askKino(conversationHistory, newUserMessage, imageUrl, systemPromptOverride) {
 
   var dateString     = getMalaysiaDateString();
-  var systemWithDate = SYSTEM_PROMPT
+  var systemWithDate = (systemPromptOverride || SYSTEM_PROMPT)
     + '\n\nCURRENT DATE: ' + dateString
     + ' (Malaysia time). Use this for all date, scheduling and availability questions.';
 

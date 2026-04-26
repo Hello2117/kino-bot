@@ -13,6 +13,10 @@ const path   = require('path');
 const fs     = require('fs');
 const { askKino, detectsReadyToRent } = require('./claudeHandler');
 const { notifyHandoff, notifyReadyToRent } = require('./notificationHandler');
+const {
+  getSession,
+  addMessage,
+} = require('../utils/sessionStore');
 
 var CHATWOOT_URL        = process.env.CHATWOOT_URL        || 'https://chatwoot-production-48b7.up.railway.app';
 var CHATWOOT_API_TOKEN  = process.env.CHATWOOT_API_TOKEN  || 'vXfm6KsomanSUDxeE2vGy4Kj';
@@ -74,34 +78,17 @@ function getSystemPrompt(inboxName) {
 }
 
 // ─────────────────────────────────────────────
-// IN-MEMORY SESSION STORE (Chatwoot conversations)
-// Key: conversationId
+// SESSION STORE — uses Supabase via sessionStore.js
+// Session key format: ig:{conversationId}
+// Keeps IG sessions separate from WA sessions
 // ─────────────────────────────────────────────
 
-var cwSessions  = new Map();
 var cwProcessed = new Set();
 var cwDebounce  = new Map();
-var SESSION_TTL = 24 * 60 * 60 * 1000;
 var DEBOUNCE_MS = 3000;
 
-function getSession(conversationId) {
-  var key     = String(conversationId);
-  var session = cwSessions.get(key);
-  if (!session) return [];
-  if (Date.now() - session.lastActive > SESSION_TTL) {
-    cwSessions.delete(key);
-    return [];
-  }
-  return session.messages || [];
-}
-
-function addToSession(conversationId, role, content) {
-  var key     = String(conversationId);
-  var session = cwSessions.get(key) || { messages: [], lastActive: Date.now() };
-  session.messages.push({ role: role, content: content });
-  if (session.messages.length > 30) session.messages = session.messages.slice(-30);
-  session.lastActive = Date.now();
-  cwSessions.set(key, session);
+function igSessionKey(conversationId) {
+  return 'ig:' + String(conversationId);
 }
 
 // ─────────────────────────────────────────────
@@ -126,7 +113,7 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
   var trimmed = text.trim();
   var lower   = trimmed.toLowerCase();
 
-  var history    = getSession(conversationId);
+  var history    = await getSession(igSessionKey(conversationId));
   var isGreeting = ['hi', 'hello', 'hey', 'start', 'hai', 'alo'].some(function(g) {
     return lower === g;
   });
@@ -134,8 +121,8 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
   // New conversation greeting
   if (history.length === 0 && isGreeting) {
     var greeting = getGreeting(inboxName);
-    addToSession(conversationId, 'user', trimmed);
-    addToSession(conversationId, 'assistant', greeting);
+    await addMessage(igSessionKey(conversationId), 'user', trimmed);
+    await addMessage(igSessionKey(conversationId), 'assistant', greeting);
     await sendChatwootReply(conversationId, greeting);
     return;
   }
@@ -158,9 +145,9 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
     .replace(/\[READY_TO_RENT\]/g, '')
     .trim();
 
-  // Save to session
-  addToSession(conversationId, 'user', trimmed);
-  addToSession(conversationId, 'assistant', reply);
+  // Save to Supabase session
+  await addMessage(igSessionKey(conversationId), 'user', trimmed);
+  await addMessage(igSessionKey(conversationId), 'assistant', reply);
 
   // Send reply via Chatwoot API
   await sendChatwootReply(conversationId, reply);
@@ -186,6 +173,7 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
 // ─────────────────────────────────────────────
 
 function handleChatwootMessage(conversationId, text, senderName, inboxName, accountId) {
+  // Async wrapper — Supabase session store requires await
   var key      = String(conversationId);
   var existing = cwDebounce.get(key);
 

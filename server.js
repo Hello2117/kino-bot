@@ -7,6 +7,7 @@ const { loadCatalog, getCatalogCount, reloadCatalog, getCatalogAge } = require('
 const { transcribeAudio }               = require('./utils/transcriber');
 const { startScheduler }                = require('./utils/scheduler');
 const { processIGWebhook }              = require('./handlers/igMessageHandler');
+const { processChatwootWebhook }        = require('./handlers/chatwootHandler');
 
 const app = express();
 app.use(express.json());
@@ -205,6 +206,16 @@ app.post('/webhook/instagram', function(req, res) {
   }
 });
 
+// ── Chatwoot Webhook ─────────────────────────────────────────────────
+app.post('/webhook/chatwoot', function(req, res) {
+  res.sendStatus(200); // Acknowledge immediately
+  try {
+    processChatwootWebhook(req.body);
+  } catch(err) {
+    console.error('[Chatwoot] Webhook error:', err.message);
+  }
+});
+
 // Admin: force catalog reload
 app.post('/admin/reload-catalog', async (req, res) => {
   if (req.query.secret !== process.env.ADMIN_SECRET) return res.status(401).json({ error: 'Unauthorized' });
@@ -251,6 +262,7 @@ app.listen(PORT, function() {
   console.log('\nKINO is live on port ' + PORT);
   console.log('WA webhook  : POST /webhook/whatsapp');
   console.log('IG webhook  : POST /webhook/instagram');
+  console.log('CW webhook  : POST /webhook/chatwoot');
   console.log('Debounce    : ' + DEBOUNCE_MS + 'ms');
   console.log('Health check: GET  /\n');
 });

@@ -12,7 +12,7 @@ const axios  = require('axios');
 const path   = require('path');
 const fs     = require('fs');
 const { askKino, detectsReadyToRent } = require('./claudeHandler');
-const { notifyHandoff, notifyReadyToRent } = require('./notificationHandler');
+const { notifyHandoff, notifyReadyToRent, notifyJeffIG } = require('./notificationHandler');
 const {
   getSession,
   addMessage,
@@ -125,6 +125,13 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
   }
 
   var history    = await getSession(igSessionKey(conversationId));
+
+  // Notify Jeff on first message — new IG enquiry
+  if (history.length === 0) {
+    notifyJeffIG(inboxName, senderName, conversationId, text).catch(function(e) {
+      console.error('[Chatwoot] notifyJeffIG error:', e.message);
+    });
+  }
   var isGreeting = ['hi', 'hello', 'hey', 'start', 'hai', 'alo'].some(function(g) {
     return lower === g;
   });
@@ -175,6 +182,9 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
     console.log('[Chatwoot] READY_TO_RENT signal | conv:', conversationId);
     notifyReadyToRent(conversationId, senderName, inboxName, null).catch(function(e) {
       console.error('[Chatwoot] READY_TO_RENT notify error:', e.message);
+    });
+    notifyJeffIG(inboxName + ' - BOOKING CONFIRMED', senderName, conversationId, text).catch(function(e) {
+      console.error('[Chatwoot] notifyJeffIG READY_TO_RENT error:', e.message);
     });
   }
 }

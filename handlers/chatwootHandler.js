@@ -113,6 +113,17 @@ async function processChatwootMessage(conversationId, text, senderName, inboxNam
   var trimmed = text.trim();
   var lower   = trimmed.toLowerCase();
 
+  // Short reaction/emoji — warm reply, skip heavy processing
+  var isShortReaction = trimmed.length <= 4 && !/[a-zA-Z0-9]/.test(trimmed);
+  if (isShortReaction) {
+    var picks = ['Thanks for the love!', 'Appreciate it!', 'Thanks! Let us know if you ever need anything.', 'Glad you liked it!'];
+    var pick  = picks[Math.floor(Math.random() * picks.length)];
+    await sendChatwootReply(conversationId, pick);
+    await addMessage(igSessionKey(conversationId), 'user', trimmed);
+    await addMessage(igSessionKey(conversationId), 'assistant', pick);
+    return;
+  }
+
   var history    = await getSession(igSessionKey(conversationId));
   var isGreeting = ['hi', 'hello', 'hey', 'start', 'hai', 'alo'].some(function(g) {
     return lower === g;

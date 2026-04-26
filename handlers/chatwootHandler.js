@@ -95,9 +95,9 @@ function igSessionKey(conversationId) {
 // GREETING
 // ─────────────────────────────────────────────
 
-var RENTALS_GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\nI can help you with:\n- Gear recommendations\n- Pricing and availability\n- Getting you a quote\n\nWhat are you looking for? / Apa yang you nak?';
+var RENTALS_GREETING = 'Hey! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN 🎬\n\nI can help with gear recommendations, pricing, availability, and putting together a quote for your shoot.\n\nWhat are you working on?';
 
-var STUDIO_GREETING = 'Hi! I\'m Kino, the booking assistant for 2117 Studio.\n\nI can help you with:\n- Studio rates and availability\n- Booking enquiries\n- Cyc wall and production questions\n\nWhat are you looking for?';
+var STUDIO_GREETING = 'Hey! I\'m Kino, the booking assistant for 2117 Studio 🎬\n\nI can help with studio rates, availability, bookings, and any production questions you have.\n\nWhat\'s the shoot?';
 
 function getGreeting(inboxName) {
   var name = (inboxName || '').toLowerCase();

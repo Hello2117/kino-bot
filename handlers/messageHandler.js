@@ -21,7 +21,7 @@ const {
   storePIC,
 } = require('../utils/sessionStore');
 
-const GREETING = 'Hi! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN.\n\nI can help you with:\n- Gear recommendations for your shoot\n- Package info and pricing\n- Availability checks\n- Getting you a quote\n\nWhat are you looking for today? / Apa yang you nak hari ni?';
+const GREETING = 'Hey! I\'m Kino, the rental assistant for TWENTYONESEVENTEEN 🎬\n\nI can help with gear recommendations, pricing, availability, and putting together a quote for your shoot.\n\nWhat are you working on?';
 
 
 // ─────────────────────────────────────────────

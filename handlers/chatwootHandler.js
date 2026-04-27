@@ -291,11 +291,27 @@ function processChatwootWebhook(body) {
     setTimeout(function() { cwProcessed.delete(dedupKey); }, 3600000);
   }
 
-  console.log('[Chatwoot] Incoming | conv:', conversationId,
-    '| inbox:', inboxName, '| from:', senderName,
-    '| text:', (text || '').substring(0, 60));
+  // Detect ad response context
+  var isAdResponse = false;
+  try {
+    var meta = event.conversation && event.conversation.meta;
+    var referer = event.conversation && event.conversation.additional_attributes && event.conversation.additional_attributes.referer_url;
+    if (referer && referer.includes('ad')) isAdResponse = true;
+    // Chatwoot also passes a campaign/ad flag
+    if (event.conversation && event.conversation.campaign_id) isAdResponse = true;
+    // Check if message has story/ad attachment
+    if (event.content_attributes && event.content_attributes.type === 'story_mention') isAdResponse = true;
+    if (event.content_attributes && event.content_attributes.type === 'story_reply') isAdResponse = true;
+  } catch(e) {}
 
-  handleChatwootMessage(conversationId, text, senderName, inboxName, accountId);
+  var adContext   = '[CONTEXT: Customer messaged from a Creator Ready Bundle ad. They are asking about the Creator Ready Bundle (RM1,500/day). Lead with bundle details.]';
+  var contextText = isAdResponse ? adContext + '\n' + text : text;
+
+  console.log('[Chatwoot] Incoming | conv:', conversationId,
+    '| inbox:', inboxName, '| ad:', isAdResponse,
+    '| from:', senderName, '| text:', (text || '').substring(0, 60));
+
+  handleChatwootMessage(conversationId, contextText, senderName, inboxName, accountId);
 }
 
 module.exports = { processChatwootWebhook, sendChatwootReply };

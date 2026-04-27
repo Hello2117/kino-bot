@@ -31,3 +31,5 @@ async function notifyJeffIG(channel, customerName, conversationId, lastMessage) 
 
   await notifyViaTelegram(telegramMsg);
 }
+
+module.exports = { notifyHandoff, notifyReadyToRent, notifyDailySummary, notifyJeffIG };

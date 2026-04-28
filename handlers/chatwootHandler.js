@@ -266,6 +266,12 @@ function handleChatwootMessage(conversationId, text, senderName, inboxName, acco
 // ─────────────────────────────────────────────
 
 function processChatwootWebhook(body) {
+  // Log full payload for ad context debugging
+  if (body.event === 'message_created' && body.message_type === 'incoming') {
+    console.log('[Chatwoot] RAW PAYLOAD KEYS:', JSON.stringify(Object.keys(body)));
+    if (body.conversation) console.log('[Chatwoot] CONV ATTRS:', JSON.stringify(body.conversation.additional_attributes || {}));
+    if (body.content_attributes) console.log('[Chatwoot] CONTENT ATTRS:', JSON.stringify(body.content_attributes));
+  }
   // Only process incoming customer messages
   if (body.event !== 'message_created') return;
   if (body.message_type !== 'incoming') return;  // skip outgoing/bot messages
@@ -304,8 +310,12 @@ function processChatwootWebhook(body) {
     if (event.content_attributes && event.content_attributes.type === 'story_reply') isAdResponse = true;
   } catch(e) {}
 
-  var adContext   = '[CONTEXT: Customer messaged from a Creator Ready Bundle ad. They are asking about the Creator Ready Bundle (RM1,500/day). Lead with bundle details.]';
-  var contextText = isAdResponse ? adContext + '\n' + text : text;
+  var adContext   = '[CONTEXT: Customer messaged from the Creator Ready Bundle Instagram ad. Skip generic questions. Immediately introduce the Creator Ready Bundle: Sony FX3/FX6 + lenses + gimbal + tripod + wireless monitor, RM1,500/day. Ask for their shoot date to move toward booking.]';
+  // Also trigger for very short/vague first messages on rentals inbox — likely from ad
+  var isVagueFirstMessage = (text || '').length < 50 && /info|this|tell me|more|what|price|how much|berapa/i.test(text || '');
+  var useAdContext = isAdResponse || isVagueFirstMessage;
+  var contextText = useAdContext ? adContext + '\n' + text : text;
+  if (useAdContext) console.log('[Chatwoot] Ad/vague context applied for conv:', conversationId);
 
   console.log('[Chatwoot] Incoming | conv:', conversationId,
     '| inbox:', inboxName, '| ad:', isAdResponse,

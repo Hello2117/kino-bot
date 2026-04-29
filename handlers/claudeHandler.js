@@ -765,6 +765,8 @@ async function fetchProductPage(customerMessage) {
 // ─────────────────────────────────────────────
 
 async function askKino(conversationHistory, newUserMessage, imageUrl, systemPromptOverride) {
+  // Strip [CONTEXT: ...] prefix for catalog/availability lookups — keep it for Claude only
+  var cleanMessageForLookup = (newUserMessage || '').replace(/^\[CONTEXT:[^\]]*\][\s\S]{0,2}/i, '').trim();
 
   var dateString     = getMalaysiaDateString();
   var systemWithDate = (systemPromptOverride || SYSTEM_PROMPT)
@@ -777,17 +779,17 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
   var footageContext      = '';
   var lookups             = [];
 
-  if (detectsAvailabilityQuery(newUserMessage)) {
-    var date = extractSimpleDate(newUserMessage);
+  if (detectsAvailabilityQuery(cleanMessageForLookup)) {
+    var date = extractSimpleDate(cleanMessageForLookup);
     if (date) {
       console.log('[Claude] Checking availability for:', date);
-      lookups.push(getAvailabilityContext(newUserMessage, date)
+      lookups.push(getAvailabilityContext(cleanMessageForLookup, date)
         .then(function(r) { if (r) availabilityContext = r; }));
     }
   }
 
-  if (detectsPricingQuery(newUserMessage)) {
-    var lower     = newUserMessage.toLowerCase();
+  if (detectsPricingQuery(cleanMessageForLookup)) {
+    var lower     = cleanMessageForLookup.toLowerCase();
     var gearAsked = GEAR_KEYWORDS.find(function(k) { return lower.includes(k); });
     if (gearAsked) {
       console.log('[Claude] Fetching pricing for:', gearAsked);
@@ -799,14 +801,14 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
   // Catalog context — only runs when message looks like a gear enquiry
   // Skip for very short messages (greetings, confirmations) to avoid slow searches
   var catalogContext = '';
-  var msgLen         = (newUserMessage || '').trim().length;
+  var msgLen         = (cleanMessageForLookup || '').trim().length;
   var looksLikeGear  = msgLen > 8
-    && !/^(hi|hello|hey|ok|okay|yes|no|sure|thanks|noted|proceed|confirmed|setuju|boleh|done)$/i.test((newUserMessage || '').trim());
+    && !/^(hi|hello|hey|ok|okay|yes|no|sure|thanks|noted|proceed|confirmed|setuju|boleh|done)$/i.test((cleanMessageForLookup || '').trim());
 
   if (looksLikeGear) {
     lookups.push(
       Promise.race([
-        getCatalogContext(newUserMessage).then(function(r) {
+        getCatalogContext(cleanMessageForLookup).then(function(r) {
           if (r) { catalogContext = r; console.log('[Claude] Catalog context added'); }
         }).catch(function(e) {
           console.error('[Claude] getCatalogContext error:', e.message);
@@ -818,11 +820,11 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
     );
   }
 
-  if (detectsFootageQuery(newUserMessage)) {
+  if (detectsFootageQuery(cleanMessageForLookup)) {
     console.log('[Claude] Fetching product page + footage...');
     lookups.push(
       Promise.race([
-        fetchProductPage(newUserMessage).then(function(r) {
+        fetchProductPage(cleanMessageForLookup).then(function(r) {
           if (r) {
             footageContext = r;
             console.log('[Claude] Product page context added');

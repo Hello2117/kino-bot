@@ -311,11 +311,9 @@ function processChatwootWebhook(body) {
   } catch(e) {}
 
   var adContext   = '[CONTEXT: Customer messaged from the Creator Ready Bundle Instagram ad. Skip generic questions. Immediately introduce the Creator Ready Bundle: Sony FX3/FX6 + lenses + gimbal + tripod + wireless monitor, RM1,500/day. Ask for their shoot date to move toward booking.]';
-  // Also trigger for very short/vague first messages on rentals inbox — likely from ad
-  var isVagueFirstMessage = (text || '').length < 50 && /info|this|tell me|more|what|price|how much|berapa/i.test(text || '');
-  var useAdContext = isAdResponse || isVagueFirstMessage;
+  var useAdContext = isAdResponse; // Only inject ad context when we can confirm it's an ad
   var contextText = useAdContext ? adContext + '\n' + text : text;
-  if (useAdContext) console.log('[Chatwoot] Ad/vague context applied for conv:', conversationId);
+  if (useAdContext) console.log('[Chatwoot] Ad context applied for conv:', conversationId);
 
   console.log('[Chatwoot] Incoming | conv:', conversationId,
     '| inbox:', inboxName, '| ad:', isAdResponse,

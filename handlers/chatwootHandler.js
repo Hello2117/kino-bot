@@ -265,7 +265,7 @@ function handleChatwootMessage(conversationId, text, senderName, inboxName, acco
 // Called from server.js with raw Chatwoot webhook body
 // ─────────────────────────────────────────────
 
-function processChatwootWebhook(body) {
+async function processChatwootWebhook(body) {
   // Log full payload for ad context debugging
   if (body.event === 'message_created' && body.message_type === 'incoming') {
     console.log('[Chatwoot] RAW PAYLOAD KEYS:', JSON.stringify(Object.keys(body)));
@@ -315,9 +315,36 @@ function processChatwootWebhook(body) {
   var contextText = useAdContext ? adContext + '\n' + text : text;
   if (useAdContext) console.log('[Chatwoot] Ad context applied for conv:', conversationId);
 
+  // Detect story mentions and replies — different handling from normal DMs
+  var contentType    = (event.content_attributes && event.content_attributes.type) || '';
+  var isStoryMention = contentType === 'story_mention';
+  var isStoryReply   = contentType === 'story_reply';
+
   console.log('[Chatwoot] Incoming | conv:', conversationId,
     '| inbox:', inboxName, '| ad:', isAdResponse,
+    '| type:', contentType || 'message',
     '| from:', senderName, '| text:', (text || '').substring(0, 60));
+
+  // Story mention — warm acknowledgement only, zero catalog involvement
+  if (isStoryMention) {
+    var picks = [
+      'Hey, thanks for the mention!',
+      'Thanks for sharing!',
+      'Appreciate the love!',
+      'Thanks for the tag!',
+    ];
+    var pick = picks[Math.floor(Math.random() * picks.length)];
+    await sendChatwootReply(conversationId, pick);
+    console.log('[Chatwoot] Story mention handled — short reply sent for conv:', conversationId);
+    return;
+  }
+
+  // Story reply — real message but no catalog assumptions
+  if (isStoryReply) {
+    var storyCtx = '[CONTEXT: Customer replied to a @2117_rentals story. Respond naturally. Do not assume they are asking about any specific product unless they explicitly mention one.]\n' + (text || '');
+    handleChatwootMessage(conversationId, storyCtx, senderName, inboxName, accountId);
+    return;
+  }
 
   handleChatwootMessage(conversationId, contextText, senderName, inboxName, accountId);
 }

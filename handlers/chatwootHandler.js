@@ -297,32 +297,22 @@ async function processChatwootWebhook(body) {
     setTimeout(function() { cwProcessed.delete(dedupKey); }, 3600000);
   }
 
-  // Detect ad response context
+  // Detect ad response context — use body not event
   var isAdResponse = false;
   try {
-    var meta = event.conversation && event.conversation.meta;
-    var referer = event.conversation && event.conversation.additional_attributes && event.conversation.additional_attributes.referer_url;
+    var referer = body.conversation && body.conversation.additional_attributes && body.conversation.additional_attributes.referer_url;
     if (referer && referer.includes('ad')) isAdResponse = true;
-    // Chatwoot also passes a campaign/ad flag
-    if (event.conversation && event.conversation.campaign_id) isAdResponse = true;
-    // Check if message has story/ad attachment
-    if (event.content_attributes && event.content_attributes.type === 'story_mention') isAdResponse = true;
-    if (event.content_attributes && event.content_attributes.type === 'story_reply') isAdResponse = true;
+    if (body.conversation && body.conversation.campaign_id) isAdResponse = true;
   } catch(e) {}
 
-  var adContext   = '[CONTEXT: Customer messaged from the Creator Ready Bundle Instagram ad. Skip generic questions. Immediately introduce the Creator Ready Bundle: Sony FX3/FX6 + lenses + gimbal + tripod + wireless monitor, RM1,500/day. Ask for their shoot date to move toward booking.]';
-  var useAdContext = isAdResponse; // Only inject ad context when we can confirm it's an ad
-  var contextText = useAdContext ? adContext + '\n' + text : text;
-  if (useAdContext) console.log('[Chatwoot] Ad context applied for conv:', conversationId);
-
-  // Detect story mentions and replies — different handling from normal DMs
-  var contentType    = (event.content_attributes && event.content_attributes.type) || '';
-  var isStoryMention = contentType === 'story_mention';
-  var isStoryReply   = contentType === 'story_reply';
+  // Detect story type using correct field from Chatwoot payload: content_attributes.image_type
+  var imageType      = (body.content_attributes && body.content_attributes.image_type) || '';
+  var isStoryMention = imageType === 'story_mention';
+  var isStoryReply   = imageType === 'ig_story_reply';
 
   console.log('[Chatwoot] Incoming | conv:', conversationId,
     '| inbox:', inboxName, '| ad:', isAdResponse,
-    '| type:', contentType || 'message',
+    '| type:', imageType || 'message',
     '| from:', senderName, '| text:', (text || '').substring(0, 60));
 
   // Story mention — warm acknowledgement only, zero catalog involvement
@@ -335,16 +325,20 @@ async function processChatwootWebhook(body) {
     ];
     var pick = picks[Math.floor(Math.random() * picks.length)];
     await sendChatwootReply(conversationId, pick);
-    console.log('[Chatwoot] Story mention handled — short reply sent for conv:', conversationId);
+    console.log('[Chatwoot] Story mention handled for conv:', conversationId);
     return;
   }
 
-  // Story reply — real message but no catalog assumptions
+  // Story reply — real message, no product assumptions
   if (isStoryReply) {
     var storyCtx = '[CONTEXT: Customer replied to a @2117_rentals story. Respond naturally. Do not assume they are asking about any specific product unless they explicitly mention one.]\n' + (text || '');
     handleChatwootMessage(conversationId, storyCtx, senderName, inboxName, accountId);
     return;
   }
+
+  var adContext   = '[CONTEXT: Customer messaged from the Creator Ready Bundle Instagram ad. Immediately introduce the Creator Ready Bundle: Sony FX3/FX6 + lenses + gimbal + tripod + wireless monitor, RM1,500/day. Ask for their shoot date.]';
+  var contextText = isAdResponse ? adContext + '\n' + text : text;
+  if (isAdResponse) console.log('[Chatwoot] Ad context applied for conv:', conversationId);
 
   handleChatwootMessage(conversationId, contextText, senderName, inboxName, accountId);
 }

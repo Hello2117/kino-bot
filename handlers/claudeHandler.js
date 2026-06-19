@@ -646,7 +646,7 @@ async function searchSampleFootage(customerMessage) {
     console.log('[Claude] Footage search:', searchQuery);
 
     var response = await client.messages.create({
-      model:      'claude-sonnet-4-20250514',
+      model:      'claude-sonnet-4-6',
       max_tokens: 600,
       tools:      [{ type: 'web_search_20250305', name: 'web_search' }],
       messages:   [{
@@ -872,7 +872,7 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
 
   try {
     var response = await client.messages.create({
-      model:      'claude-sonnet-4-20250514',
+      model:      'claude-sonnet-4-6',
       max_tokens: 1024,
       system:     systemWithDate,
       messages:   messages,

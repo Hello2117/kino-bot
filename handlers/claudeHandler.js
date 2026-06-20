@@ -49,10 +49,23 @@ function getMalaysiaDateString() {
 
 async function fetchImageAsBase64(imageUrl) {
   try {
-    var response = await axios.get(imageUrl, {
+    var metaToken = process.env.META_ACCESS_TOKEN;
+    var downloadUrl = imageUrl;
+
+    // Meta Cloud API: media ID URL → resolve to actual download URL first
+    if (imageUrl && imageUrl.includes('graph.facebook.com') && metaToken) {
+      var mediaResp = await axios.get(imageUrl, {
+        headers: { 'Authorization': 'Bearer ' + metaToken },
+        timeout: 10000,
+      });
+      downloadUrl = mediaResp.data && mediaResp.data.url;
+      if (!downloadUrl) throw new Error('No download URL in Meta media response');
+    }
+
+    var response = await axios.get(downloadUrl, {
       responseType: 'arraybuffer',
-      headers: { 'Authorization': 'Bearer ' + process.env.WATI_API_KEY },
-      timeout: 10000,
+      headers: metaToken ? { 'Authorization': 'Bearer ' + metaToken } : {},
+      timeout: 15000,
     });
     var base64      = Buffer.from(response.data).toString('base64');
     var contentType = response.headers['content-type'] || 'image/jpeg';

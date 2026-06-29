@@ -887,8 +887,9 @@ async function askKino(conversationHistory, newUserMessage, imageUrl, systemProm
     var response = await client.messages.create({
       model:      'claude-sonnet-4-6',
       max_tokens: 1024,
-      system:     systemWithDate,
+      system: [{ type: 'text', text: systemWithDate, cache_control: { type: 'ephemeral' } }],
       messages:   messages,
+      betas:      ['prompt-caching-2024-07-31'],
     });
     var reply = response.content[0] && response.content[0].text
       ? response.content[0].text

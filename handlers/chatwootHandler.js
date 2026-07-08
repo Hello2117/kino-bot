@@ -297,6 +297,13 @@ async function processChatwootWebhook(body) {
     setTimeout(function() { cwProcessed.delete(dedupKey); }, 3600000);
   }
 
+  // Ignore messages from own/internal accounts
+  var senderUsername = (body.sender && body.sender.identifier) || (body.sender && body.sender.name) || '';
+  if (senderUsername.toLowerCase().includes('2117_studio')) {
+    console.log('[Chatwoot] Ignoring message from 2117_studio account');
+    return;
+  }
+
   // Detect ad response context — use body not event
   var isAdResponse = false;
   try {

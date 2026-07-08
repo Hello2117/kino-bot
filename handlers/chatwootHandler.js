@@ -277,6 +277,13 @@ async function processChatwootWebhook(body) {
   if (body.message_type !== 'incoming') return;  // skip outgoing/bot messages
   if (!body.content || !body.content.trim()) return;
 
+  // Hard stop: never process our own error/fallback messages (breaks any feedback loop)
+  var content = body.content.trim();
+  if (content === "Sorry, I'm having a moment — please try again shortly, or message us directly.") {
+    console.log('[Chatwoot] Ignoring own error message — feedback loop prevention');
+    return;
+  }
+
   var conversationId = body.conversation && body.conversation.id;
   var msgId          = body.id;
   var text           = body.content;
@@ -307,13 +314,13 @@ async function processChatwootWebhook(body) {
     return;
   }
 
-  // Ignore messages from own/internal accounts
+  // Ignore messages from own/internal accounts (2117_studio, 2117rentals, etc.)
   var senderIdentifier = (body.sender && body.sender.identifier) || '';
   var senderName2      = (body.sender && body.sender.name) || '';
   var senderEmail      = (body.sender && body.sender.email) || '';
   var senderFields     = (senderIdentifier + ' ' + senderName2 + ' ' + senderEmail).toLowerCase();
-  if (senderFields.includes('2117_studio') || senderFields.includes('2117studio')) {
-    console.log('[Chatwoot] Ignoring message from 2117_studio account:', senderName2, senderIdentifier);
+  if (senderFields.includes('2117')) {
+    console.log('[Chatwoot] Ignoring message from internal 2117 account:', senderName2, senderIdentifier);
     return;
   }
 

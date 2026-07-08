@@ -297,10 +297,23 @@ async function processChatwootWebhook(body) {
     setTimeout(function() { cwProcessed.delete(dedupKey); }, 3600000);
   }
 
+  // Log sender details to help debug account filtering
+  console.log('[Chatwoot] Sender:', JSON.stringify(body.sender || {}));
+
+  // Block bot-type senders (prevents feedback loops between bot accounts)
+  var senderType = (body.sender && body.sender.type) || '';
+  if (senderType === 'agent_bot' || senderType === 'bot') {
+    console.log('[Chatwoot] Ignoring bot sender type:', senderType);
+    return;
+  }
+
   // Ignore messages from own/internal accounts
-  var senderUsername = (body.sender && body.sender.identifier) || (body.sender && body.sender.name) || '';
-  if (senderUsername.toLowerCase().includes('2117_studio')) {
-    console.log('[Chatwoot] Ignoring message from 2117_studio account');
+  var senderIdentifier = (body.sender && body.sender.identifier) || '';
+  var senderName2      = (body.sender && body.sender.name) || '';
+  var senderEmail      = (body.sender && body.sender.email) || '';
+  var senderFields     = (senderIdentifier + ' ' + senderName2 + ' ' + senderEmail).toLowerCase();
+  if (senderFields.includes('2117_studio') || senderFields.includes('2117studio')) {
+    console.log('[Chatwoot] Ignoring message from 2117_studio account:', senderName2, senderIdentifier);
     return;
   }
 
